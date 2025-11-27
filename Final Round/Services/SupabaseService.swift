@@ -20,7 +20,9 @@ class SupabaseService: ObservableObject {
             fatalError("Supabase credentials not found in Info.plist")
         }
         
-        print("🔧 Initializing Supabase with URL: \(url)")
+        #if DEBUG
+        print("🔧 Initializing Supabase")
+        #endif
         
         self.client = SupabaseClient(
             supabaseURL: URL(string: url)!,
@@ -31,8 +33,6 @@ class SupabaseService: ObservableObject {
                 )
             )
         )
-        
-        print("✅ Supabase client initialized successfully")
         
         // Check for existing session on init
         Task {
@@ -60,15 +60,12 @@ class SupabaseService: ObservableObject {
     // MARK: - Authentication
     
     func signUp(email: String, password: String, fullName: String) async throws {
-        print("📝 Creating new account for: \(email)")
         let response = try await client.auth.signUp(
             email: email,
             password: password
         )
         
         let user = response.user
-        print("✅ Sign up successful! User ID: \(user.id.uuidString)")
-        print("📧 User email: \(user.email ?? "N/A")")
         
         // Create initial user profile with full name
         let profile = UserProfile(
@@ -89,7 +86,6 @@ class SupabaseService: ObservableObject {
             .insert(profile)
             .execute()
         
-        print("✅ Initial profile created")
         
         await MainActor.run {
             self.currentUser = user
@@ -98,15 +94,12 @@ class SupabaseService: ObservableObject {
     }
     
     func signIn(email: String, password: String) async throws {
-        print("🔐 Attempting to sign in with email: \(email)")
         
         let session = try await client.auth.signIn(
             email: email,
             password: password
         )
         
-        print("✅ Sign in successful! User ID: \(session.user.id.uuidString)")
-        print("📧 User email: \(session.user.email ?? "N/A")")
         await MainActor.run {
             self.currentUser = session.user
             self.isAuthenticated = true
@@ -143,13 +136,13 @@ class SupabaseService: ObservableObject {
     
     /// Generates and sends OTP to email for password reset
     func sendPasswordResetOTP(email: String) async throws {
+        #if DEBUG
         print("📧 [OTP] Starting password reset for: \(email)")
+        #endif
         
         // Generate a 6-digit OTP
         let otp = String(format: "%06d", Int.random(in: 0...999999))
         let expiresAt = Date().addingTimeInterval(600) // 10 minutes expiration
-        
-        print("📧 [OTP] Generated OTP, expires at: \(expiresAt)")
         
         // Store OTP in Supabase table
         let otpRecord = PasswordResetOTP(
@@ -166,10 +159,8 @@ class SupabaseService: ObservableObject {
                 .delete()
                 .eq("email", value: email.lowercased())
                 .execute()
-            print("📧 [OTP] Cleaned up any existing OTPs")
         } catch {
-            print("⚠️ [OTP] Failed to clean up existing OTPs: \(error.localizedDescription)")
-            // Continue anyway
+            // Continue anyway - old OTPs will expire
         }
         
         // Insert new OTP
@@ -178,33 +169,29 @@ class SupabaseService: ObservableObject {
                 .from("password_reset_otps")
                 .insert(otpRecord)
                 .execute()
-            print("📧 [OTP] OTP stored in database successfully")
         } catch {
-            print("❌ [OTP] Failed to store OTP in database: \(error)")
+            #if DEBUG
+            print("❌ [OTP] Failed to store OTP: \(error)")
+            #endif
             throw SupabaseError.custom("Failed to store verification code. Please try again.")
         }
         
         // Send email via Supabase edge function
         do {
-            print("📧 [OTP] Invoking send-otp-email edge function...")
             try await client.functions.invoke(
                 "send-otp-email",
                 options: .init(body: ["email": email, "otp": otp])
             )
-            print("✅ [OTP] Edge function completed successfully")
         } catch {
+            #if DEBUG
             print("❌ [OTP] Edge function failed: \(error)")
-            print("❌ [OTP] Error details: \(String(describing: error))")
+            #endif
             throw SupabaseError.custom("Failed to send verification email. Please check your email address and try again.")
         }
-        
-        print("✅ [OTP] Password reset OTP sent successfully to \(email)")
     }
     
     /// Verifies the OTP entered by user
     func verifyPasswordResetOTP(email: String, otp: String) async throws -> Bool {
-        print("🔐 Verifying OTP for: \(email)")
-        
         let response: [PasswordResetOTP] = try await client
             .from("password_reset_otps")
             .select()
@@ -215,13 +202,11 @@ class SupabaseService: ObservableObject {
             .value
         
         guard let otpRecord = response.first else {
-            print("❌ Invalid OTP")
             return false
         }
         
         // Check if OTP has expired
         if otpRecord.expiresAt < Date() {
-            print("❌ OTP has expired")
             // Clean up expired OTP
             try? await client
                 .from("password_reset_otps")
@@ -231,66 +216,43 @@ class SupabaseService: ObservableObject {
             return false
         }
         
-        print("✅ OTP verified successfully")
         return true
     }
     
     /// Resets password after OTP verification
     func resetPasswordWithOTP(email: String, otp: String, newPassword: String) async throws {
-        print("🔑 [RESET] Starting password reset for: \(email)")
-        
         // Verify OTP first
-        print("🔑 [RESET] Verifying OTP...")
         guard try await verifyPasswordResetOTP(email: email, otp: otp) else {
-            print("❌ [RESET] OTP verification failed")
             throw SupabaseError.invalidOTP
         }
-        print("✅ [RESET] OTP verified")
         
         // Mark OTP as used
-        print("🔑 [RESET] Marking OTP as used...")
-        do {
-            try await client
-                .from("password_reset_otps")
-                .update(["used": true])
-                .eq("email", value: email.lowercased())
-                .eq("otp", value: otp)
-                .execute()
-            print("✅ [RESET] OTP marked as used")
-        } catch {
-            print("⚠️ [RESET] Failed to mark OTP as used: \(error)")
-            // Continue anyway
-        }
+        try? await client
+            .from("password_reset_otps")
+            .update(["used": true])
+            .eq("email", value: email.lowercased())
+            .eq("otp", value: otp)
+            .execute()
         
         // Update password using admin function (requires Supabase edge function)
-        print("🔑 [RESET] Calling reset-user-password edge function...")
         do {
             try await client.functions.invoke(
                 "reset-user-password",
                 options: .init(body: ["email": email, "new_password": newPassword])
             )
-            print("✅ [RESET] Edge function completed successfully")
         } catch {
+            #if DEBUG
             print("❌ [RESET] Edge function failed: \(error)")
-            print("❌ [RESET] Error details: \(String(describing: error))")
+            #endif
             throw SupabaseError.custom("Failed to reset password. Please ensure the reset-user-password edge function is deployed.")
         }
         
         // Clean up OTP
-        print("🔑 [RESET] Cleaning up OTP...")
-        do {
-            try await client
-                .from("password_reset_otps")
-                .delete()
-                .eq("email", value: email.lowercased())
-                .execute()
-            print("✅ [RESET] OTP cleaned up")
-        } catch {
-            print("⚠️ [RESET] Failed to clean up OTP: \(error)")
-            // Not critical, continue
-        }
-        
-        print("✅ [RESET] Password reset completed successfully")
+        try? await client
+            .from("password_reset_otps")
+            .delete()
+            .eq("email", value: email.lowercased())
+            .execute()
     }
     
     /// Verifies if new password is same as current (for logged-in users)
@@ -313,7 +275,6 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.userNotFound
         }
         
-        print("💾 Saving interview session for: \(userEmail)")
         let record = try InterviewSessionRecord(from: session, userEmail: userEmail)
         
         try await client
@@ -321,7 +282,6 @@ class SupabaseService: ObservableObject {
             .insert(record)
             .execute()
         
-        print("✅ Interview session saved successfully")
     }
     
     func fetchInterviewSessions(limit: Int? = nil) async throws -> [InterviewSession] {
@@ -329,7 +289,6 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.userNotFound
         }
         
-        print("📥 Fetching interview sessions for: \(userEmail)")
         
         var query = client
             .from("interview_sessions")
@@ -343,7 +302,6 @@ class SupabaseService: ObservableObject {
         
         let response: [InterviewSessionRecord] = try await query.execute().value
         
-        print("✅ Fetched \(response.count) sessions")
         return try response.map { try $0.toSession() }
     }
     
@@ -356,7 +314,6 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.userNotFound
         }
         
-        print("🗑️ Deleting interview session: \(id)")
         
         try await client
             .from("interview_sessions")
@@ -364,7 +321,6 @@ class SupabaseService: ObservableObject {
             .eq("id", value: id.uuidString)
             .execute()
         
-        print("✅ Interview session deleted successfully")
     }
     
     func getSessionStats() async throws -> SessionStats {
@@ -414,7 +370,6 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.userNotFound
         }
         
-        print("🔍 Checking if profile exists for user: \(userId)")
         
         do {
             let response: [UserProfile] = try await client
@@ -428,7 +383,6 @@ class SupabaseService: ObservableObject {
             print(exists ? "✅ Profile exists" : "❌ No profile found")
             return exists
         } catch {
-            print("❌ Error checking profile: \(error)")
             return false
         }
     }
@@ -446,7 +400,6 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.userNotFound
         }
         
-        print("💾 Saving profile for user: \(userId)")
         
         let profile = UserProfile(
             id: userId,
@@ -466,11 +419,9 @@ class SupabaseService: ObservableObject {
             .upsert(profile)
             .execute()
         
-        print("✅ Profile saved successfully")
     }
     
     func updateProfile(_ profile: UserProfile) async throws {
-        print("💾 Updating profile for user: \(profile.id)")
         
         // Use upsert to update the profile
         try await client
@@ -478,7 +429,6 @@ class SupabaseService: ObservableObject {
             .upsert(profile)
             .execute()
         
-        print("✅ Profile updated successfully")
     }
     
     func fetchProfile() async throws -> UserProfile? {
@@ -486,7 +436,6 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.userNotFound
         }
         
-        print("📥 Fetching profile for user: \(userId)")
         
         let response: [UserProfile] = try await client
             .from("profiles")
@@ -496,14 +445,9 @@ class SupabaseService: ObservableObject {
             .value
         
         if let profile = response.first {
-            print("✅ Profile fetched successfully")
-            print("👤 Name: \(profile.fullName), Role: \(profile.targetRole)")
-            print("🎯 Skills count: \(profile.skills.count)")
-            print("🔧 Skills: \(profile.skills)")
             return profile
         }
         
-        print("❌ No profile found")
         return nil
     }
     
@@ -520,7 +464,6 @@ class SupabaseService: ObservableObject {
         let fileName = "\(userId.uuidString).jpg"
         let filePath = "avatars/\(fileName)"
         
-        print("📤 Uploading avatar: \(filePath)")
         
         // Upload to Supabase Storage - using Data directly instead of deprecated File
         try await client.storage
@@ -532,7 +475,6 @@ class SupabaseService: ObservableObject {
             .from("avatars")
             .getPublicURL(path: filePath)
         
-        print("✅ Avatar uploaded successfully: \(publicURL)")
         return publicURL.absoluteString
     }
 }

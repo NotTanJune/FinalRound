@@ -454,8 +454,10 @@ struct ProfileView: View {
             Task {
                 do {
                     if let email = supabase.currentUser?.email {
-                        let otp = try await supabase.sendPasswordResetOTP(email: email)
-                        print("📧 Password reset OTP sent: \(otp)")
+                        try await supabase.sendPasswordResetOTP(email: email)
+                        #if DEBUG
+                        print("📧 Password reset OTP sent")
+                        #endif
                     }
                 } catch {
                     print("Password reset error: \(error)")
