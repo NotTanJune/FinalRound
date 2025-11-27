@@ -1,0 +1,7 @@
+secrets.xcconfig
+secrets.xcconfig.example
+.github
+.DS_Store
+Final Round.xcodeproj/*
+Final RoundTests/*
+Final RoundUITests/*
