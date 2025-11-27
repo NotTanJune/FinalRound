@@ -471,7 +471,7 @@ struct ProfileView: View {
             Task {
                 do {
                     try await supabase.deleteAccount()
-                    appState.signOut()
+                    appState.deleteAccount()
                 } catch {
                     print("Delete account error: \(error)")
                 }

@@ -31,6 +31,25 @@ class ProfileSetupViewModel: ObservableObject {
     @Published var isSaving = false
     @Published var saveError: String?
     
+    init() {
+        // Load existing full name from profile (set during account creation)
+        Task {
+            await loadExistingProfile()
+        }
+    }
+    
+    private func loadExistingProfile() async {
+        do {
+            if let profile = try await SupabaseService.shared.fetchProfile() {
+                await MainActor.run {
+                    self.fullName = profile.fullName
+                }
+            }
+        } catch {
+            print("Failed to load existing profile: \(error)")
+        }
+    }
+    
     enum Step {
         case identity
         case skills
@@ -49,7 +68,6 @@ class ProfileSetupViewModel: ObservableObject {
     // MARK: - Computed Properties
     
     var canProceedFromIdentity: Bool {
-        !fullName.trimmingCharacters(in: .whitespaces).isEmpty &&
         !targetRole.trimmingCharacters(in: .whitespaces).isEmpty
     }
     

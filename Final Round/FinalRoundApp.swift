@@ -44,6 +44,10 @@ class AppState: ObservableObject {
     @Published var preloadedRecommendedJobs: [JobPost] = []
     @Published var preloadedSessions: [InterviewSession] = []
     
+    // Login view state
+    @Published var justSignedOut = false
+    @Published var justDeletedAccount = false
+    
     init() {
         // Load persisted values
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
@@ -172,6 +176,7 @@ class AppState: ObservableObject {
                 self.isLoggedIn = false
                 self.hasProfileSetup = false
                 self.selectedTab = 0 // Reset to home tab
+                self.justSignedOut = true // Show sign in view on next login screen
                 // Keep hasCompletedOnboarding = true so returning users go to login, not onboarding
                 
                 // Clear preloaded data
@@ -189,6 +194,13 @@ class AppState: ObservableObject {
                 self.showMinimumLoadingAnimation = false
             }
         }
+    }
+    
+    func deleteAccount() {
+        self.justDeletedAccount = true // Show create account view on next login screen
+        self.justSignedOut = false
+        UserDefaults.standard.set(false, forKey: "hasEverSignedIn") // Reset so create account is shown
+        signOut()
     }
     
     func completeSignIn() {

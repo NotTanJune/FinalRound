@@ -17,7 +17,11 @@ struct LoginView: View {
     @State private var errorMessage: String?
     @State private var showErrorBanner = false
     @State private var shakeOffset: CGFloat = 0
+    @State private var passwordHasError = false
     @State private var isPasswordVisible = false
+    @State private var showAccountNotFoundAlert = false
+    @State private var failedLoginAttempts = 0
+    @State private var lastAttemptedEmail = ""
     
     // Forgot password state
     @State private var showForgotPasswordSheet = false
@@ -63,13 +67,6 @@ struct LoginView: View {
                         .font(.system(size: 28, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                     
-                    // Error Banner
-                    if showErrorBanner, let error = errorMessage {
-                        ErrorBanner(message: error)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                            .padding(.horizontal, 24)
-                    }
-                    
                     // Form Card
                     VStack(spacing: 20) {
                     // Full Name (Create Account only)
@@ -87,7 +84,7 @@ struct LoginView: View {
                                         .padding(.horizontal, 16)
                                 }
                                 TextField("", text: $fullName)
-                                    .textFieldStyle(LoginTextFieldStyle(hasError: showErrorBanner))
+                                    .textFieldStyle(LoginTextFieldStyle(hasError: false))
                                     .textContentType(.name)
                                     .autocorrectionDisabled(true)
                                     .focused($focusedField, equals: .name)
@@ -114,7 +111,7 @@ struct LoginView: View {
                                     .padding(.horizontal, 16)
                             }
                             TextField("", text: $email)
-                                .textFieldStyle(LoginTextFieldStyle(hasError: showErrorBanner))
+                                .textFieldStyle(LoginTextFieldStyle(hasError: false))
                                 .keyboardType(.emailAddress)
                                 .textContentType(.emailAddress)
                                 .textInputAutocapitalization(.never)
@@ -144,7 +141,7 @@ struct LoginView: View {
                                 
                                 if isPasswordVisible {
                                     TextField("", text: $password)
-                                        .textFieldStyle(LoginTextFieldStyle(hasError: showErrorBanner))
+                                        .textFieldStyle(LoginTextFieldStyle(hasError: passwordHasError))
                                         .textContentType(isCreatingAccount ? .newPassword : .password)
                                         .focused($focusedField, equals: .password)
                                         .submitLabel(isFormValid ? (isCreatingAccount ? .go : .go) : .done)
@@ -153,7 +150,7 @@ struct LoginView: View {
                                         }
                                 } else {
                                     SecureField("", text: $password)
-                                        .textFieldStyle(LoginTextFieldStyle(hasError: showErrorBanner))
+                                        .textFieldStyle(LoginTextFieldStyle(hasError: passwordHasError))
                                         .textContentType(isCreatingAccount ? .newPassword : .password)
                                         .focused($focusedField, equals: .password)
                                         .submitLabel(isFormValid ? (isCreatingAccount ? .go : .go) : .done)
@@ -224,6 +221,7 @@ struct LoginView: View {
                             isCreatingAccount.toggle()
                             clearError()
                             focusedField = nil
+                            failedLoginAttempts = 0
                         }
                     } label: {
                         Text(isCreatingAccount ? "Already have an account? Sign In" : "Don't have an account? Create one")
@@ -238,6 +236,18 @@ struct LoginView: View {
             }
             }
             .scrollDismissesKeyboard(.interactively)
+            
+            // Floating Error Banner Overlay
+            VStack {
+                if showErrorBanner, let error = errorMessage {
+                    FloatingErrorBanner(message: error)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .padding(.horizontal, 24)
+                        .padding(.top, 8)
+                }
+                Spacer()
+            }
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showErrorBanner)
         }
         .onTapGesture {
             focusedField = nil
@@ -273,6 +283,35 @@ struct LoginView: View {
             }
         } message: {
             Text("Your password has been reset successfully. You can now sign in with your new password.")
+        }
+        .alert("Account Not Found", isPresented: $showAccountNotFoundAlert) {
+            Button("Create Account") {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    isCreatingAccount = true
+                    password = "" // Clear password for fresh start
+                    clearError()
+                }
+            }
+            Button("Try Again", role: .cancel) {
+                password = "" // Clear password to retry
+            }
+        } message: {
+            Text("We couldn't find an account with this email. Would you like to create a new account?")
+        }
+        .onAppear {
+            // Determine default view based on app state
+            if appState.justSignedOut {
+                // User just signed out - show sign in view
+                isCreatingAccount = false
+                appState.justSignedOut = false
+            } else if appState.justDeletedAccount {
+                // User just deleted account - show create account view
+                isCreatingAccount = true
+                appState.justDeletedAccount = false
+            } else if !UserDefaults.standard.bool(forKey: "hasEverSignedIn") {
+                // First time user - show create account view
+                isCreatingAccount = true
+            }
         }
     }
     
@@ -347,6 +386,7 @@ struct LoginView: View {
                 }
                 
                 await MainActor.run {
+                    UserDefaults.standard.set(true, forKey: "hasEverSignedIn")
                     appState.hasCompletedOnboarding = true
                     appState.isLoggedIn = true
                     appState.hasProfileSetup = hasCompleteProfile
@@ -369,6 +409,7 @@ struct LoginView: View {
             do {
                 try await supabase.signUp(email: email, password: password, fullName: fullName)
                 await MainActor.run {
+                    UserDefaults.standard.set(true, forKey: "hasEverSignedIn")
                     appState.hasCompletedOnboarding = true
                     appState.isLoggedIn = true
                     // Keep hasProfileSetup = false to trigger ProfileSetupView
@@ -387,8 +428,31 @@ struct LoginView: View {
         // Parse error message
         let errorText = error.localizedDescription
         
+        // Check for account not found / user doesn't exist
         if errorText.contains("Invalid login credentials") || errorText.contains("invalid_grant") {
-            errorMessage = "Incorrect password entered, please try again"
+            // Track failed attempts for this email
+            if email == lastAttemptedEmail {
+                failedLoginAttempts += 1
+            } else {
+                failedLoginAttempts = 1
+                lastAttemptedEmail = email
+            }
+            
+            // After 2 failed attempts, suggest creating account
+            if failedLoginAttempts >= 2 {
+                showAccountNotFoundAlert = true
+                failedLoginAttempts = 0
+                return
+            }
+            
+            errorMessage = "Incorrect email or password. Please try again."
+            triggerPasswordShake()
+        } else if errorText.lowercased().contains("user not found") || 
+                  errorText.lowercased().contains("no user found") ||
+                  errorText.lowercased().contains("user does not exist") {
+            // Account doesn't exist - show alert
+            showAccountNotFoundAlert = true
+            return
         } else if errorText.contains("User already registered") {
             errorMessage = "This email is already registered. Please sign in instead."
         } else {
@@ -396,30 +460,50 @@ struct LoginView: View {
         }
         
         // Show error banner
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             showErrorBanner = true
         }
         
-        // Quick shake animation on password field only
-        withAnimation(.spring(response: 0.15, dampingFraction: 0.3)) {
-            shakeOffset = 8
+        // Auto-hide error after 3 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            clearError()
+        }
+    }
+    
+    private func triggerPasswordShake() {
+        // Mark password field as having error
+        passwordHasError = true
+        
+        // Smooth shake animation sequence
+        let shakeDuration: Double = 0.08
+        let shakeDistance: CGFloat = 10
+        
+        withAnimation(.easeInOut(duration: shakeDuration)) {
+            shakeOffset = shakeDistance
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            withAnimation(.spring(response: 0.15, dampingFraction: 0.3)) {
-                shakeOffset = -8
+        DispatchQueue.main.asyncAfter(deadline: .now() + shakeDuration) {
+            withAnimation(.easeInOut(duration: shakeDuration)) {
+                shakeOffset = -shakeDistance
             }
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            withAnimation(.spring(response: 0.15, dampingFraction: 0.3)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + shakeDuration * 2) {
+            withAnimation(.easeInOut(duration: shakeDuration)) {
+                shakeOffset = shakeDistance * 0.5
+            }
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + shakeDuration * 3) {
+            withAnimation(.easeInOut(duration: shakeDuration)) {
+                shakeOffset = -shakeDistance * 0.5
+            }
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + shakeDuration * 4) {
+            withAnimation(.easeInOut(duration: shakeDuration * 1.5)) {
                 shakeOffset = 0
             }
-        }
-        
-        // Auto-hide error after 5 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-            clearError()
         }
     }
     
@@ -428,6 +512,7 @@ struct LoginView: View {
             showErrorBanner = false
             errorMessage = nil
             shakeOffset = 0
+            passwordHasError = false
         }
     }
     
@@ -587,6 +672,32 @@ struct ErrorBanner: View {
                 .fill(AppTheme.softRed)
         )
         .shadow(color: AppTheme.softRed.opacity(0.3), radius: 8, y: 4)
+    }
+}
+
+// MARK: - Floating Error Banner (Overlay)
+struct FloatingErrorBanner: View {
+    let message: String
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+            
+            Text(message)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            Spacer()
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(AppTheme.softRed)
+        )
+        .shadow(color: Color.black.opacity(0.15), radius: 12, y: 6)
     }
 }
 

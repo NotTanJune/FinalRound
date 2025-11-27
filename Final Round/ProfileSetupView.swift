@@ -90,7 +90,7 @@ struct IdentityStepView: View {
     @FocusState private var focusedField: Field?
     
     enum Field {
-        case name, role
+        case role
     }
     
     var body: some View {
@@ -116,19 +116,6 @@ struct IdentityStepView: View {
                 
                 // Form
                 VStack(spacing: 24) {
-                    // Full Name
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Full Name")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(AppTheme.textSecondary)
-                        
-                        TextField("", text: $viewModel.fullName, prompt: Text("John Doe"))
-                            .textFieldStyle(CustomTextFieldStyle())
-                            .textContentType(.name)
-                            .autocorrectionDisabled(true)
-                            .focused($focusedField, equals: .name)
-                    }
-                    
                     // Target Role
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Target Role")
