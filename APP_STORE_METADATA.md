@@ -132,17 +132,17 @@ Initial release! 🎉
 
 **Privacy Policy URL:**
 ```
-https://nottanjune.github.io/final-round/privacy-policy.html
+https://nottanjune.github.io/FinalRound/privacy-policy.html
 ```
 
 **Support URL:**
 ```
-https://nottanjune.github.io/final-round/support.html
+https://nottanjune.github.io/FinalRound/support.html
 ```
 
 **Marketing URL (optional):**
 ```
-https://nottanjune.github.io/final-round/
+https://nottanjune.github.io/FinalRound/
 ```
 
 ---
