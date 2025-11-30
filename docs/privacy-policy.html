@@ -52,6 +52,39 @@
     </ul>
     <p>Audio recordings are processed to provide feedback and are stored securely. You can delete your recordings at any time.</p>
 
+    <h3>Face Data and TrueDepth Camera (Eye Contact Tracking)</h3>
+    <p>During interview practice sessions, our app uses Apple's ARKit framework and the TrueDepth camera (on supported devices) to track your eye contact. This feature helps you improve your non-verbal communication skills.</p>
+    
+    <h4>What We Collect:</h4>
+    <ul>
+        <li>Face orientation and gaze direction to determine if you are looking at the camera</li>
+        <li>Eye contact percentage calculated from gaze tracking data</li>
+    </ul>
+    
+    <h4>What We Do NOT Collect:</h4>
+    <ul>
+        <li>Facial geometry, face mesh, or 3D face maps</li>
+        <li>Biometric data or facial recognition identifiers</li>
+        <li>Facial expressions or emotion data</li>
+        <li>Face images, photos, or face prints</li>
+    </ul>
+    
+    <h4>How Face Data is Processed:</h4>
+    <ul>
+        <li><strong>On-device processing only:</strong> All face tracking is performed locally on your device using Apple's ARKit framework. Raw face tracking data never leaves your device.</li>
+        <li><strong>Real-time processing:</strong> Gaze direction data is processed in real-time and immediately discarded after calculating the eye contact percentage.</li>
+        <li><strong>No biometric identification:</strong> We do not use face data to identify you or any other person.</li>
+    </ul>
+    
+    <h4>Storage and Sharing:</h4>
+    <ul>
+        <li><strong>Stored:</strong> Only the calculated eye contact percentage (a simple number) is stored as part of your session analytics.</li>
+        <li><strong>Not shared:</strong> Face data and eye contact metrics are never shared with third parties.</li>
+        <li><strong>Deletion:</strong> Eye contact metrics are deleted when you delete your interview session or account.</li>
+    </ul>
+    
+    <p>You can disable camera access at any time in your device settings, which will disable the eye contact tracking feature.</p>
+
     <h3>Location Data</h3>
     <p>With your permission, we collect location data to:</p>
     <ul>

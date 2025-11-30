@@ -125,28 +125,69 @@ class ProfileSetupViewModel: ObservableObject {
     func requestDeviceLocation() async {
         isLoadingLocation = true
         
+        let initialStatus = LocationManager.shared.authorizationStatus
+        
+        // If already authorized, just fetch the location
+        if initialStatus == .authorizedWhenInUse || initialStatus == .authorizedAlways {
+            await fetchAndSetLocation()
+            return
+        }
+        
+        // If denied or restricted, stop loading
+        if initialStatus == .denied || initialStatus == .restricted {
+            await MainActor.run {
+                self.isLoadingLocation = false
+            }
+            return
+        }
+        
+        // Status is .notDetermined - request permission and poll for response
         await MainActor.run {
             LocationManager.shared.requestLocationPermission()
         }
         
-        // Wait a moment for permission dialog
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        
-        if LocationManager.shared.authorizationStatus == .authorizedWhenInUse ||
-           LocationManager.shared.authorizationStatus == .authorizedAlways {
-            LocationManager.shared.fetchCurrentLocation()
+        // Poll for authorization status change (up to 60 seconds for user to respond)
+        for _ in 0..<120 {
+            try? await Task.sleep(nanoseconds: 500_000_000) // Check every 0.5 seconds
             
-            // Wait for location to be fetched
-            for _ in 0..<20 {
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                if let detectedLocation = LocationManager.shared.currentLocation {
-                    await MainActor.run {
-                        self.location = detectedLocation
-                        self.currency = LocationManager.shared.currentCurrency ?? "USD"
-                        self.isLoadingLocation = false
-                    }
-                    return
+            let currentStatus = LocationManager.shared.authorizationStatus
+            
+            // User granted permission
+            if currentStatus == .authorizedWhenInUse || currentStatus == .authorizedAlways {
+                await fetchAndSetLocation()
+                return
+            }
+            
+            // User denied permission or status changed to restricted
+            if currentStatus == .denied || currentStatus == .restricted {
+                await MainActor.run {
+                    self.isLoadingLocation = false
                 }
+                return
+            }
+            
+            // Still .notDetermined - keep polling
+        }
+        
+        // Timeout after 60 seconds
+        await MainActor.run {
+            self.isLoadingLocation = false
+        }
+    }
+    
+    private func fetchAndSetLocation() async {
+        LocationManager.shared.fetchCurrentLocation()
+        
+        // Wait for location to be fetched (up to 10 seconds)
+        for _ in 0..<20 {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            if let detectedLocation = LocationManager.shared.currentLocation {
+                await MainActor.run {
+                    self.location = detectedLocation
+                    self.currency = LocationManager.shared.currentCurrency ?? "USD"
+                    self.isLoadingLocation = false
+                }
+                return
             }
         }
         

@@ -488,7 +488,7 @@ struct LocationStepView: View {
                                 .foregroundStyle(AppTheme.textSecondary)
                             
                             HStack {
-                                Image(systemName: "dollarsign.circle.fill")
+                                Image(systemName: CurrencyFormatter.getSFSymbolName(for: viewModel.currency))
                                     .font(.system(size: 20))
                                     .foregroundStyle(AppTheme.primary)
                                 
