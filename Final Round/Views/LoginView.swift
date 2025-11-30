@@ -20,8 +20,6 @@ struct LoginView: View {
     @State private var passwordHasError = false
     @State private var isPasswordVisible = false
     @State private var showAccountNotFoundAlert = false
-    @State private var failedLoginAttempts = 0
-    @State private var lastAttemptedEmail = ""
     
     // Forgot password state
     @State private var showForgotPasswordSheet = false
@@ -221,7 +219,6 @@ struct LoginView: View {
                             isCreatingAccount.toggle()
                             clearError()
                             focusedField = nil
-                            failedLoginAttempts = 0
                         }
                     } label: {
                         Text(isCreatingAccount ? "Already have an account? Sign In" : "Don't have an account? Create one")
@@ -284,7 +281,7 @@ struct LoginView: View {
         } message: {
             Text("Your password has been reset successfully. You can now sign in with your new password.")
         }
-        .alert("Account Not Found", isPresented: $showAccountNotFoundAlert) {
+        .alert("Sign In Failed", isPresented: $showAccountNotFoundAlert) {
             Button("Create Account") {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     isCreatingAccount = true
@@ -294,9 +291,10 @@ struct LoginView: View {
             }
             Button("Try Again", role: .cancel) {
                 password = "" // Clear password to retry
+                triggerPasswordShake()
             }
         } message: {
-            Text("We couldn't find an account with this email. Would you like to create a new account?")
+            Text("The email or password you entered is incorrect. If you don't have an account, you can create one now.")
         }
         .onAppear {
             // Determine default view based on app state
@@ -428,25 +426,12 @@ struct LoginView: View {
         // Parse error message
         let errorText = error.localizedDescription
         
-        // Check for account not found / user doesn't exist
+        // Check for invalid login credentials (covers both "user not found" and "wrong password")
         if errorText.contains("Invalid login credentials") || errorText.contains("invalid_grant") {
-            // Track failed attempts for this email
-            if email == lastAttemptedEmail {
-                failedLoginAttempts += 1
-            } else {
-                failedLoginAttempts = 1
-                lastAttemptedEmail = email
-            }
-            
-            // After 2 failed attempts, suggest creating account
-            if failedLoginAttempts >= 2 {
-                showAccountNotFoundAlert = true
-                failedLoginAttempts = 0
-                return
-            }
-            
-            errorMessage = "Incorrect email or password. Please try again."
-            triggerPasswordShake()
+            // Immediately show the alert with options to create account or try again
+            // This provides better UX than making user guess if account exists
+            showAccountNotFoundAlert = true
+            return
         } else if errorText.lowercased().contains("user not found") || 
                   errorText.lowercased().contains("no user found") ||
                   errorText.lowercased().contains("user does not exist") {

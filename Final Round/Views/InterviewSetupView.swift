@@ -133,6 +133,8 @@ struct InterviewSetupView: View {
                     }
                     .buttonStyle(PrimaryButtonStyle())
                     .disabled(selectedCategories.isEmpty || roleTitle.trimmingCharacters(in: .whitespaces).isEmpty || isGeneratingQuestions)
+                    .opacity(selectedCategories.isEmpty || roleTitle.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
+                    .animation(.easeInOut(duration: 0.2), value: roleTitle.isEmpty)
                     .shadow(color: AppTheme.primary.opacity(0.3), radius: 12, x: 0, y: 6)
                     .padding(.horizontal, 24)
                 }
@@ -170,8 +172,10 @@ struct InterviewSetupView: View {
                 }
             }
             .onChange(of: appState.overlayDismissToken) { _, _ in
-                // When overlayDismissToken changes, dismiss this view
-                dismiss()
+                // When overlayDismissToken changes, dismiss this view with animation
+                withAnimation(.easeOut(duration: 0.3)) {
+                    dismiss()
+                }
             }
             .alert("Error", isPresented: $showingError) {
                 Button("OK", role: .cancel) { }

@@ -74,7 +74,7 @@ struct ResultsView: View {
             }
             .navigationTitle("Interview Preps")
             .refreshable {
-                await loadSessions()
+                await loadSessions(forceRefresh: true)
             }
         }
         .sheet(item: $selectedSession) { session in
@@ -109,14 +109,18 @@ struct ResultsView: View {
         } message: {
             Text("Are you sure you want to delete this interview session? This action cannot be undone.")
         }
-        .task {
-            await loadSessions()
+        .task(id: appState.selectedTab) {
+            // Reload sessions whenever this tab becomes active
+            // forceRefresh ensures we get the latest data from Supabase
+            if appState.selectedTab == 1 {
+                await loadSessions(forceRefresh: true)
+            }
         }
     }
     
-    private func loadSessions() async {
-        // First, check if we have preloaded sessions from AppState
-        if !appState.preloadedSessions.isEmpty {
+    private func loadSessions(forceRefresh: Bool = false) async {
+        // Use preloaded sessions only on initial load, not on refresh
+        if !forceRefresh && !appState.preloadedSessions.isEmpty {
             await MainActor.run {
                 self.sessions = appState.preloadedSessions
                 self.isLoading = false
@@ -125,17 +129,20 @@ struct ResultsView: View {
             return
         }
         
-        // Fallback: Load sessions if not preloaded
+        // Fetch fresh data from Supabase
         await MainActor.run {
-            isLoading = true
+            isLoading = sessions.isEmpty // Only show loading if no sessions yet
         }
         
         do {
             let fetchedSessions = try await supabase.fetchInterviewSessions()
             await MainActor.run {
                 self.sessions = fetchedSessions
+                // Update the preloaded cache so it stays in sync
+                appState.preloadedSessions = fetchedSessions
                 self.isLoading = false
             }
+            print("✅ Fetched \(fetchedSessions.count) sessions from Supabase")
         } catch {
             print("Failed to load sessions: \(error)")
             await MainActor.run {

@@ -119,12 +119,44 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.userNotFound
         }
         
-        // Call the Supabase function to delete the user
-        try await client.rpc("delete_user").execute()
+        // Retry logic for network connection issues (error -1005)
+        // iOS sometimes drops idle connections, causing the first request to fail
+        let maxRetries = 3
+        var lastError: Error?
         
-        await MainActor.run {
-            self.currentUser = nil
-            self.isAuthenticated = false
+        for attempt in 1...maxRetries {
+            do {
+                // Call the Supabase function to delete the user
+                try await client.rpc("delete_user").execute()
+                
+                // Success - update state and return
+                await MainActor.run {
+                    self.currentUser = nil
+                    self.isAuthenticated = false
+                }
+                return
+            } catch {
+                lastError = error
+                let nsError = error as NSError
+                
+                // Check if it's the "network connection was lost" error (-1005)
+                // or "cannot connect to host" (-1004) which can also occur
+                if nsError.domain == NSURLErrorDomain &&
+                   (nsError.code == -1005 || nsError.code == -1004) &&
+                   attempt < maxRetries {
+                    print("⚠️ Network error on attempt \(attempt), retrying in 1 second...")
+                    try? await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second before retry
+                    continue
+                }
+                
+                // For other errors or last attempt, throw the error
+                throw error
+            }
+        }
+        
+        // If we get here, all retries failed
+        if let error = lastError {
+            throw error
         }
     }
     

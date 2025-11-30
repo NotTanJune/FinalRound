@@ -17,11 +17,13 @@ struct InterviewSessionView: View {
     @StateObject private var supabase = SupabaseService.shared
     @StateObject private var eyeContactAnalyzer = EyeContactAnalyzer()
     @State private var isSavingSession = false
+    @State private var isEndingSession = false
     @State private var answeredQuestions: Set<Int> = []
     @State private var skippedQuestions: Set<Int> = []
     @State private var currentRecordingURL: URL?
     @State private var isProcessingAnswer = false
     @State private var questionStartTime: Date?
+    @State private var pausedTimeDisplay: String?
     
     private let accent = AppTheme.accent
     private let groqService = GroqService.shared
@@ -66,16 +68,26 @@ struct InterviewSessionView: View {
                     // Timer
                     if hasStarted {
                         HStack(spacing: 4) {
-                            TimelineView(.periodic(from: Date(), by: 1.0)) { _ in
-                                Text(timeElapsed())
+                            if isEndingSession, let pausedTime = pausedTimeDisplay {
+                                // Show paused time when ending session
+                                Text(pausedTime)
                                     .font(.system(size: 14, weight: .medium))
                                     .monospacedDigit()
+                                    .foregroundStyle(AppTheme.textSecondary)
+                            } else {
+                                // Live updating timer
+                                TimelineView(.periodic(from: Date(), by: 1.0)) { _ in
+                                    Text(timeElapsed())
+                                        .font(.system(size: 14, weight: .medium))
+                                        .monospacedDigit()
+                                }
                             }
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(AppTheme.cardBackground)
+                        .background(isEndingSession ? AppTheme.cardBackground.opacity(0.6) : AppTheme.cardBackground)
                         .cornerRadius(20)
+                        .animation(.easeInOut(duration: 0.2), value: isEndingSession)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -187,12 +199,14 @@ struct InterviewSessionView: View {
                         } label: {
                             Text("Skip")
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(AppTheme.textPrimary)
+                                .foregroundStyle(isEndingSession ? AppTheme.textSecondary : AppTheme.textPrimary)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
                                 .background(AppTheme.cardBackground)
                                 .cornerRadius(16)
                         }
+                        .disabled(isEndingSession)
+                        .opacity(isEndingSession ? 0.5 : 1)
                         
                         Button {
                             answerQuestion()
@@ -202,24 +216,36 @@ struct InterviewSessionView: View {
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
-                                .background(AppTheme.primary)
+                                .background(isEndingSession ? AppTheme.primary.opacity(0.5) : AppTheme.primary)
                                 .cornerRadius(16)
                         }
+                        .disabled(isEndingSession)
+                        .opacity(isEndingSession ? 0.5 : 1)
                     }
                     .padding(.horizontal, 20)
+                    .animation(.easeInOut(duration: 0.2), value: isEndingSession)
                 }
                 
                 // End Call Button (Smaller)
                 Button {
                     endSession()
                 } label: {
-                    Image(systemName: "phone.down.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(.white)
-                        .frame(width: 56, height: 56)
-                        .background(AppTheme.softRed)
-                        .clipShape(Circle())
+                    if isEndingSession {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .frame(width: 56, height: 56)
+                            .background(AppTheme.softRed.opacity(0.6))
+                            .clipShape(Circle())
+                    } else {
+                        Image(systemName: "phone.down.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(.white)
+                            .frame(width: 56, height: 56)
+                            .background(AppTheme.softRed)
+                            .clipShape(Circle())
+                    }
                 }
+                .disabled(isEndingSession)
                 .padding(.bottom, 20)
             }
         }
@@ -236,22 +262,10 @@ struct InterviewSessionView: View {
                     dismiss()
                 },
                 onGoHome: {
-                    showingSummary = false
-                    // Increment overlayDismissToken to dismiss InterviewSetupView
-                    appState.overlayDismissToken += 1
-                    // Change to home tab
-                    appState.selectedTab = 0
-                    // Dismiss this view
-                    dismiss()
+                    navigateToTab(0)
                 },
                 onViewResults: {
-                    showingSummary = false
-                    // Increment overlayDismissToken to dismiss InterviewSetupView
-                    appState.overlayDismissToken += 1
-                    // Change to preps tab
-                    appState.selectedTab = 1
-                    // Dismiss this view
-                    dismiss()
+                    navigateToTab(1)
                 }
             )
         }
@@ -504,8 +518,17 @@ struct ControlCircleButton: View {
     }
     
     private func endSession() {
-        guard !isTransitioning else { return }
-        isTransitioning = true
+        // Use dedicated flag to prevent double-tapping end button
+        // This allows ending the session even while a question is being processed
+        guard !isEndingSession else { return }
+        isEndingSession = true
+        
+        // Capture the current time to pause the timer display
+        pausedTimeDisplay = timeElapsed()
+        
+        // Cancel any ongoing question processing
+        isTransitioning = false
+        isProcessingAnswer = false
         
         // Stop eye contact tracking
         _ = eyeContactAnalyzer.stopTracking()
@@ -538,6 +561,12 @@ struct ControlCircleButton: View {
             do {
                 try await supabase.saveInterviewSession(session)
                 print("✅ Session saved to Supabase")
+                
+                // Add the new session to the preloaded cache so it shows up immediately in Preps
+                await MainActor.run {
+                    // Insert at the beginning (most recent first)
+                    appState.preloadedSessions.insert(session, at: 0)
+                }
             } catch {
                 print("❌ Failed to save session: \(error.localizedDescription)")
             }
@@ -547,7 +576,7 @@ struct ControlCircleButton: View {
                 // Small delay to prevent rate limiting
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                     showingSummary = true
-                    isTransitioning = false
+                    isEndingSession = false
                 }
             }
         }
@@ -559,6 +588,25 @@ struct ControlCircleButton: View {
         let minutes = elapsed / 60
         let seconds = elapsed % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+    
+    private func navigateToTab(_ tab: Int) {
+        // Pre-set the target tab (user won't see this yet since overlays are covering)
+        appState.selectedTab = tab
+        
+        // Step 1: Dismiss the summary sheet
+        showingSummary = false
+        
+        // Step 2: Wait for sheet dismiss animation (~0.4s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // Step 3: Dismiss InterviewSessionView (inner fullScreenCover)
+            dismiss()
+            
+            // Step 4: Wait for inner fullScreenCover to dismiss (~0.4s), then dismiss outer
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                appState.overlayDismissToken += 1
+            }
+        }
     }
 }
 
