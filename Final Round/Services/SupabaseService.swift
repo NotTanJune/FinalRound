@@ -3,6 +3,7 @@ import UIKit
 import Supabase
 import Combine
 import Auth
+import Security
 
 class SupabaseService: ObservableObject {
     static let shared = SupabaseService()
@@ -20,9 +21,7 @@ class SupabaseService: ObservableObject {
             fatalError("Supabase credentials not found in Info.plist")
         }
         
-        #if DEBUG
-        print("🔧 Initializing Supabase")
-        #endif
+        SecureLogger.debug("Initializing Supabase", category: .database)
         
         self.client = SupabaseClient(
             supabaseURL: URL(string: url)!,
@@ -60,8 +59,27 @@ class SupabaseService: ObservableObject {
     // MARK: - Authentication
     
     func signUp(email: String, password: String, fullName: String) async throws {
+        // Security: Sanitize inputs
+        let sanitizedEmail = InputSanitizer.sanitizeEmail(email)
+        let sanitizedName = InputSanitizer.sanitizeName(fullName)
+        
+        // Security: Validate inputs
+        guard InputSanitizer.isValidEmail(sanitizedEmail) else {
+            throw SupabaseError.custom("Invalid email format")
+        }
+        
+        let passwordValidation = InputSanitizer.isValidPassword(password)
+        guard passwordValidation.isValid else {
+            throw SupabaseError.custom(passwordValidation.message ?? "Invalid password")
+        }
+        
+        // Security: Apply rate limiting
+        try await RateLimiter.shared.waitAndConsume(.supabaseAuth)
+        
+        SecureLogger.authEvent("Sign up initiated", email: sanitizedEmail, category: .auth)
+        
         let response = try await client.auth.signUp(
-            email: email,
+            email: sanitizedEmail,
             password: password
         )
         
@@ -70,7 +88,7 @@ class SupabaseService: ObservableObject {
         // Create initial user profile with full name
         let profile = UserProfile(
             id: user.id,
-            fullName: fullName,
+            fullName: sanitizedName,
             targetRole: "",
             yearsOfExperience: "",
             skills: [],
@@ -86,6 +104,7 @@ class SupabaseService: ObservableObject {
             .insert(profile)
             .execute()
         
+        SecureLogger.authEvent("Sign up successful", category: .auth)
         
         await MainActor.run {
             self.currentUser = user
@@ -94,11 +113,20 @@ class SupabaseService: ObservableObject {
     }
     
     func signIn(email: String, password: String) async throws {
+        // Security: Sanitize email
+        let sanitizedEmail = InputSanitizer.sanitizeEmail(email)
+        
+        // Security: Apply rate limiting
+        try await RateLimiter.shared.waitAndConsume(.supabaseAuth)
+        
+        SecureLogger.authEvent("Sign in initiated", email: sanitizedEmail, category: .auth)
         
         let session = try await client.auth.signIn(
-            email: email,
+            email: sanitizedEmail,
             password: password
         )
+        
+        SecureLogger.authEvent("Sign in successful", category: .auth)
         
         await MainActor.run {
             self.currentUser = session.user
@@ -107,17 +135,21 @@ class SupabaseService: ObservableObject {
     }
     
     func signOut() async throws {
+        SecureLogger.authEvent("Sign out initiated", category: .auth)
         try await client.auth.signOut()
         await MainActor.run {
             self.currentUser = nil
             self.isAuthenticated = false
         }
+        SecureLogger.authEvent("Sign out successful", category: .auth)
     }
     
     func deleteAccount() async throws {
         guard currentUser != nil else {
             throw SupabaseError.userNotFound
         }
+        
+        SecureLogger.authEvent("Account deletion initiated", category: .auth)
         
         // Retry logic for network connection issues (error -1005)
         // iOS sometimes drops idle connections, causing the first request to fail
@@ -134,6 +166,7 @@ class SupabaseService: ObservableObject {
                     self.currentUser = nil
                     self.isAuthenticated = false
                 }
+                SecureLogger.authEvent("Account deletion successful", category: .auth)
                 return
             } catch {
                 lastError = error
@@ -144,7 +177,7 @@ class SupabaseService: ObservableObject {
                 if nsError.domain == NSURLErrorDomain &&
                    (nsError.code == -1005 || nsError.code == -1004) &&
                    attempt < maxRetries {
-                    print("⚠️ Network error on attempt \(attempt), retrying in 1 second...")
+                    SecureLogger.warning("Network error on attempt \(attempt), retrying...", category: .network)
                     try? await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second before retry
                     continue
                 }
@@ -168,17 +201,29 @@ class SupabaseService: ObservableObject {
     
     /// Generates and sends OTP to email for password reset
     func sendPasswordResetOTP(email: String) async throws {
-        #if DEBUG
-        print("📧 [OTP] Starting password reset for: \(email)")
-        #endif
+        // Security: Sanitize and validate email
+        let sanitizedEmail = InputSanitizer.sanitizeEmail(email)
         
-        // Generate a 6-digit OTP
-        let otp = String(format: "%06d", Int.random(in: 0...999999))
+        guard InputSanitizer.isValidEmail(sanitizedEmail) else {
+            throw SupabaseError.custom("Invalid email format")
+        }
+        
+        // Security: Apply rate limiting to prevent OTP abuse
+        try await RateLimiter.shared.waitAndConsume(.supabaseAuth)
+        
+        SecureLogger.authEvent("OTP password reset initiated", email: sanitizedEmail, category: .auth)
+        
+        // Generate a 6-digit OTP using cryptographically secure random
+        var randomBytes = [UInt8](repeating: 0, count: 4)
+        _ = SecRandomCopyBytes(kSecRandomDefault, randomBytes.count, &randomBytes)
+        let randomValue = randomBytes.withUnsafeBytes { $0.load(as: UInt32.self) }
+        let otp = String(format: "%06d", randomValue % 1000000)
+        
         let expiresAt = Date().addingTimeInterval(600) // 10 minutes expiration
         
         // Store OTP in Supabase table
         let otpRecord = PasswordResetOTP(
-            email: email.lowercased(),
+            email: sanitizedEmail,
             otp: otp,
             expiresAt: expiresAt,
             used: false
@@ -189,7 +234,7 @@ class SupabaseService: ObservableObject {
             try await client
                 .from("password_reset_otps")
                 .delete()
-                .eq("email", value: email.lowercased())
+                .eq("email", value: sanitizedEmail)
                 .execute()
         } catch {
             // Continue anyway - old OTPs will expire
@@ -202,9 +247,7 @@ class SupabaseService: ObservableObject {
                 .insert(otpRecord)
                 .execute()
         } catch {
-            #if DEBUG
-            print("❌ [OTP] Failed to store OTP: \(error)")
-            #endif
+            SecureLogger.error("Failed to store OTP", category: .auth)
             throw SupabaseError.custom("Failed to store verification code. Please try again.")
         }
         
@@ -212,49 +255,73 @@ class SupabaseService: ObservableObject {
         do {
             try await client.functions.invoke(
                 "send-otp-email",
-                options: .init(body: ["email": email, "otp": otp])
+                options: .init(body: ["email": sanitizedEmail, "otp": otp])
             )
+            SecureLogger.authEvent("OTP sent successfully", category: .auth)
         } catch {
-            #if DEBUG
-            print("❌ [OTP] Edge function failed: \(error)")
-            #endif
+            SecureLogger.error("Edge function failed for OTP email", category: .auth)
             throw SupabaseError.custom("Failed to send verification email. Please check your email address and try again.")
         }
     }
     
     /// Verifies the OTP entered by user
     func verifyPasswordResetOTP(email: String, otp: String) async throws -> Bool {
+        // Security: Sanitize inputs
+        let sanitizedEmail = InputSanitizer.sanitizeEmail(email)
+        let sanitizedOTP = otp.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Security: Validate OTP format (6 digits only)
+        guard sanitizedOTP.count == 6, sanitizedOTP.allSatisfy({ $0.isNumber }) else {
+            SecureLogger.security("Invalid OTP format attempted", category: .auth)
+            return false
+        }
+        
+        // Security: Apply rate limiting to prevent brute force
+        try await RateLimiter.shared.waitAndConsume(.supabaseAuth)
+        
         let response: [PasswordResetOTP] = try await client
             .from("password_reset_otps")
             .select()
-            .eq("email", value: email.lowercased())
-            .eq("otp", value: otp)
+            .eq("email", value: sanitizedEmail)
+            .eq("otp", value: sanitizedOTP)
             .eq("used", value: false)
             .execute()
             .value
         
         guard let otpRecord = response.first else {
+            SecureLogger.security("OTP verification failed - not found", category: .auth)
             return false
         }
         
         // Check if OTP has expired
         if otpRecord.expiresAt < Date() {
+            SecureLogger.security("OTP verification failed - expired", category: .auth)
             // Clean up expired OTP
             try? await client
                 .from("password_reset_otps")
                 .delete()
-                .eq("email", value: email.lowercased())
+                .eq("email", value: sanitizedEmail)
                 .execute()
             return false
         }
         
+        SecureLogger.authEvent("OTP verified successfully", category: .auth)
         return true
     }
     
     /// Resets password after OTP verification
     func resetPasswordWithOTP(email: String, otp: String, newPassword: String) async throws {
+        // Security: Sanitize email
+        let sanitizedEmail = InputSanitizer.sanitizeEmail(email)
+        
+        // Security: Validate password
+        let passwordValidation = InputSanitizer.isValidPassword(newPassword)
+        guard passwordValidation.isValid else {
+            throw SupabaseError.custom(passwordValidation.message ?? "Invalid password")
+        }
+        
         // Verify OTP first
-        guard try await verifyPasswordResetOTP(email: email, otp: otp) else {
+        guard try await verifyPasswordResetOTP(email: sanitizedEmail, otp: otp) else {
             throw SupabaseError.invalidOTP
         }
         
@@ -262,7 +329,7 @@ class SupabaseService: ObservableObject {
         try? await client
             .from("password_reset_otps")
             .update(["used": true])
-            .eq("email", value: email.lowercased())
+            .eq("email", value: sanitizedEmail)
             .eq("otp", value: otp)
             .execute()
         
@@ -270,12 +337,11 @@ class SupabaseService: ObservableObject {
         do {
             try await client.functions.invoke(
                 "reset-user-password",
-                options: .init(body: ["email": email, "new_password": newPassword])
+                options: .init(body: ["email": sanitizedEmail, "new_password": newPassword])
             )
+            SecureLogger.authEvent("Password reset successful", category: .auth)
         } catch {
-            #if DEBUG
-            print("❌ [RESET] Edge function failed: \(error)")
-            #endif
+            SecureLogger.error("Edge function failed for password reset", category: .auth)
             throw SupabaseError.custom("Failed to reset password. Please ensure the reset-user-password edge function is deployed.")
         }
         
@@ -283,7 +349,7 @@ class SupabaseService: ObservableObject {
         try? await client
             .from("password_reset_otps")
             .delete()
-            .eq("email", value: email.lowercased())
+            .eq("email", value: sanitizedEmail)
             .execute()
     }
     
@@ -307,6 +373,9 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.userNotFound
         }
         
+        // Security: Apply rate limiting
+        try await RateLimiter.shared.waitAndConsume(.supabaseDB)
+        
         let record = try InterviewSessionRecord(from: session, userEmail: userEmail)
         
         try await client
@@ -314,6 +383,7 @@ class SupabaseService: ObservableObject {
             .insert(record)
             .execute()
         
+        SecureLogger.database("Insert", table: "interview_sessions", category: .database)
     }
     
     func fetchInterviewSessions(limit: Int? = nil) async throws -> [InterviewSession] {
@@ -321,6 +391,8 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.userNotFound
         }
         
+        // Security: Apply rate limiting
+        try await RateLimiter.shared.waitAndConsume(.supabaseDB)
         
         var query = client
             .from("interview_sessions")
@@ -334,6 +406,8 @@ class SupabaseService: ObservableObject {
         
         let response: [InterviewSessionRecord] = try await query.execute().value
         
+        SecureLogger.database("Select \(response.count) records", table: "interview_sessions", category: .database)
+        
         return try response.map { try $0.toSession() }
     }
     
@@ -346,6 +420,8 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.userNotFound
         }
         
+        // Security: Apply rate limiting
+        try await RateLimiter.shared.waitAndConsume(.supabaseDB)
         
         try await client
             .from("interview_sessions")
@@ -353,6 +429,7 @@ class SupabaseService: ObservableObject {
             .eq("id", value: id.uuidString)
             .execute()
         
+        SecureLogger.database("Delete", table: "interview_sessions", category: .database)
     }
     
     func getSessionStats() async throws -> SessionStats {
@@ -402,6 +479,8 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.userNotFound
         }
         
+        // Security: Apply rate limiting
+        try await RateLimiter.shared.waitAndConsume(.supabaseDB)
         
         do {
             let response: [UserProfile] = try await client
@@ -412,7 +491,7 @@ class SupabaseService: ObservableObject {
                 .value
             
             let exists = !response.isEmpty
-            print(exists ? "✅ Profile exists" : "❌ No profile found")
+            SecureLogger.database(exists ? "Profile exists" : "No profile found", table: "profiles", category: .database)
             return exists
         } catch {
             return false
@@ -432,15 +511,23 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.userNotFound
         }
         
+        // Security: Sanitize all inputs
+        let sanitizedName = InputSanitizer.sanitizeName(fullName)
+        let sanitizedRole = InputSanitizer.sanitizeRole(targetRole)
+        let sanitizedSkills = InputSanitizer.sanitizeSkills(skills)
+        let sanitizedLocation = location.map { InputSanitizer.sanitizeLocation($0) }
+        
+        // Security: Apply rate limiting
+        try await RateLimiter.shared.waitAndConsume(.supabaseDB)
         
         let profile = UserProfile(
             id: userId,
-            fullName: fullName,
-            targetRole: targetRole,
+            fullName: sanitizedName,
+            targetRole: sanitizedRole,
             yearsOfExperience: yearsOfExperience,
-            skills: skills,
+            skills: sanitizedSkills,
             avatarURL: avatarURL,
-            location: location,
+            location: sanitizedLocation,
             currency: currency,
             updatedAt: Date()
         )
@@ -451,9 +538,12 @@ class SupabaseService: ObservableObject {
             .upsert(profile)
             .execute()
         
+        SecureLogger.database("Upsert", table: "profiles", category: .database)
     }
     
     func updateProfile(_ profile: UserProfile) async throws {
+        // Security: Apply rate limiting
+        try await RateLimiter.shared.waitAndConsume(.supabaseDB)
         
         // Use upsert to update the profile
         try await client
@@ -461,6 +551,7 @@ class SupabaseService: ObservableObject {
             .upsert(profile)
             .execute()
         
+        SecureLogger.database("Update", table: "profiles", category: .database)
     }
     
     func fetchProfile() async throws -> UserProfile? {
@@ -468,6 +559,8 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.userNotFound
         }
         
+        // Security: Apply rate limiting
+        try await RateLimiter.shared.waitAndConsume(.supabaseDB)
         
         let response: [UserProfile] = try await client
             .from("profiles")
@@ -475,6 +568,8 @@ class SupabaseService: ObservableObject {
             .eq("id", value: userId.uuidString)
             .execute()
             .value
+        
+        SecureLogger.database("Fetch profile", table: "profiles", category: .database)
         
         if let profile = response.first {
             return profile
@@ -493,9 +588,18 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.imageCompressionFailed
         }
         
+        // Security: Validate image size (max 5MB)
+        guard imageData.count <= 5 * 1024 * 1024 else {
+            throw SupabaseError.custom("Image is too large. Please select a smaller image.")
+        }
+        
+        // Security: Apply rate limiting
+        try await RateLimiter.shared.waitAndConsume(.supabaseDB)
+        
         let fileName = "\(userId.uuidString).jpg"
         let filePath = "avatars/\(fileName)"
         
+        SecureLogger.debug("Uploading avatar", category: .database)
         
         // Upload to Supabase Storage - using Data directly instead of deprecated File
         try await client.storage
@@ -506,6 +610,8 @@ class SupabaseService: ObservableObject {
         let publicURL = try client.storage
             .from("avatars")
             .getPublicURL(path: filePath)
+        
+        SecureLogger.database("Avatar uploaded", table: "avatars", category: .database)
         
         return publicURL.absoluteString
     }
@@ -550,6 +656,8 @@ enum SupabaseError: LocalizedError {
     case invalidOTP
     case otpExpired
     case samePassword
+    case rateLimited
+    case inputValidationFailed(String)
     case custom(String)
     
     var errorDescription: String? {
@@ -568,6 +676,10 @@ enum SupabaseError: LocalizedError {
             return "Verification code has expired"
         case .samePassword:
             return "New password cannot be the same as the old password"
+        case .rateLimited:
+            return "Too many requests. Please try again later."
+        case .inputValidationFailed(let message):
+            return "Validation failed: \(message)"
         case .custom(let message):
             return message
         }
