@@ -355,6 +355,7 @@ struct PhotoStepView: View {
         .safeAreaInset(edge: .bottom) {
             BottomActionBar(showsSeparator: false) {
                 VStack(spacing: 12) {
+                    // Complete Setup button - only enabled when photo is uploaded
                     Button {
                         viewModel.goToNextStep()
                     } label: {
@@ -366,8 +367,10 @@ struct PhotoStepView: View {
                         }
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .disabled(viewModel.isSaving)
+                    .disabled(viewModel.isSaving || viewModel.profileImage == nil)
+                    .opacity(viewModel.profileImage == nil ? 0.5 : 1.0)
                     
+                    // Skip for now - always available (this is the way to proceed without a photo)
                     Button {
                         viewModel.skipPhoto()
                     } label: {

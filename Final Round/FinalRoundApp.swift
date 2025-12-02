@@ -200,7 +200,33 @@ class AppState: ObservableObject {
         self.justDeletedAccount = true // Show create account view on next login screen
         self.justSignedOut = false
         UserDefaults.standard.set(false, forKey: "hasEverSignedIn") // Reset so create account is shown
+        
+        // Clear all app state completely
+        clearAllAppState()
+        
+        // Sign out (which clears the session)
         signOut()
+    }
+    
+    /// Completely clears all app state - used after account deletion
+    private func clearAllAppState() {
+        // Clear preloaded data
+        self.preloadedProfile = nil
+        self.preloadedProfileImage = nil
+        self.preloadedRecommendedJobs = []
+        self.preloadedSessions = []
+        
+        // Clear job cache
+        JobCache.shared.clearCache()
+        
+        // Reset profile setup state
+        self.hasProfileSetup = false
+        
+        // Reset tab selection
+        self.selectedTab = 0
+        
+        // Clear any rate limiter state to allow fresh requests
+        RateLimiter.shared.reset()
     }
     
     func completeSignIn() {

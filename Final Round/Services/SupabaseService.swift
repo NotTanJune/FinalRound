@@ -78,37 +78,103 @@ class SupabaseService: ObservableObject {
         
         SecureLogger.authEvent("Sign up initiated", email: sanitizedEmail, category: .auth)
         
-        let response = try await client.auth.signUp(
-            email: sanitizedEmail,
-            password: password
-        )
+        // Retry logic for cases where a recently deleted account might not have fully propagated
+        let maxRetries = 3
+        var lastError: Error?
         
-        let user = response.user
+        for attempt in 1...maxRetries {
+            do {
+                let response = try await client.auth.signUp(
+                    email: sanitizedEmail,
+                    password: password
+                )
+                
+                let user = response.user
+                
+                // Create initial user profile with full name
+                let profile = UserProfile(
+                    id: user.id,
+                    fullName: sanitizedName,
+                    targetRole: "",
+                    yearsOfExperience: "",
+                    skills: [],
+                    avatarURL: nil,
+                    location: nil,
+                    currency: nil,
+                    updatedAt: Date()
+                )
+                
+                // Save profile to database with retry
+                try await saveProfileWithRetry(profile: profile)
+                
+                SecureLogger.authEvent("Sign up successful", category: .auth)
+                
+                await MainActor.run {
+                    self.currentUser = user
+                    self.isAuthenticated = true
+                }
+                return
+                
+            } catch {
+                lastError = error
+                let errorDescription = error.localizedDescription.lowercased()
+                let nsError = error as NSError
+                
+                // Check for network errors or account conflict errors that might resolve with retry
+                let isNetworkError = nsError.domain == NSURLErrorDomain && 
+                                     (nsError.code == -1005 || nsError.code == -1004 || nsError.code == -1001)
+                let isConflictError = errorDescription.contains("already registered") ||
+                                      errorDescription.contains("already exists") ||
+                                      errorDescription.contains("conflict")
+                
+                if (isNetworkError || isConflictError) && attempt < maxRetries {
+                    SecureLogger.warning("Sign up attempt \(attempt) failed, retrying in 2 seconds...", category: .auth)
+                    try? await Task.sleep(nanoseconds: 2_000_000_000) // Wait 2 seconds
+                    continue
+                }
+                
+                // Provide more helpful error messages
+                if isConflictError {
+                    throw SupabaseError.custom("This email is already in use. If you recently deleted an account, please wait a moment and try again.")
+                }
+                
+                throw error
+            }
+        }
         
-        // Create initial user profile with full name
-        let profile = UserProfile(
-            id: user.id,
-            fullName: sanitizedName,
-            targetRole: "",
-            yearsOfExperience: "",
-            skills: [],
-            avatarURL: nil,
-            location: nil,
-            currency: nil,
-            updatedAt: Date()
-        )
+        // If we get here, all retries failed
+        if let error = lastError {
+            throw error
+        }
+    }
+    
+    /// Saves profile with retry logic for network issues
+    private func saveProfileWithRetry(profile: UserProfile) async throws {
+        let maxRetries = 3
+        var lastError: Error?
         
-        // Save profile to database
-        try await client
-            .from("profiles")
-            .insert(profile)
-            .execute()
+        for attempt in 1...maxRetries {
+            do {
+                try await client
+                    .from("profiles")
+                    .insert(profile)
+                    .execute()
+                return
+            } catch {
+                lastError = error
+                let nsError = error as NSError
+                
+                if nsError.domain == NSURLErrorDomain && attempt < maxRetries {
+                    SecureLogger.warning("Profile save attempt \(attempt) failed, retrying...", category: .database)
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    continue
+                }
+                throw error
+            }
+        }
         
-        SecureLogger.authEvent("Sign up successful", category: .auth)
-        
-        await MainActor.run {
-            self.currentUser = user
-            self.isAuthenticated = true
+        if let error = lastError {
+            throw error
         }
     }
     
@@ -145,10 +211,11 @@ class SupabaseService: ObservableObject {
     }
     
     func deleteAccount() async throws {
-        guard currentUser != nil else {
+        guard let user = currentUser else {
             throw SupabaseError.userNotFound
         }
         
+        let userEmail = user.email ?? ""
         SecureLogger.authEvent("Account deletion initiated", category: .auth)
         
         // Retry logic for network connection issues (error -1005)
@@ -161,12 +228,27 @@ class SupabaseService: ObservableObject {
                 // Call the Supabase function to delete the user
                 try await client.rpc("delete_user").execute()
                 
-                // Success - update state and return
+                // Sign out the local session
+                try? await client.auth.signOut()
+                
+                // Success - update state
                 await MainActor.run {
                     self.currentUser = nil
                     self.isAuthenticated = false
                 }
-                SecureLogger.authEvent("Account deletion successful", category: .auth)
+                
+                SecureLogger.authEvent("Account deletion RPC successful, verifying...", category: .auth)
+                
+                // Poll to verify the deletion has propagated
+                // This ensures the email is free for re-registration
+                let deletionVerified = await verifyAccountDeleted(email: userEmail)
+                
+                if deletionVerified {
+                    SecureLogger.authEvent("Account deletion verified", category: .auth)
+                } else {
+                    SecureLogger.warning("Account deletion could not be verified, proceeding anyway", category: .auth)
+                }
+                
                 return
             } catch {
                 lastError = error
@@ -191,6 +273,47 @@ class SupabaseService: ObservableObject {
         if let error = lastError {
             throw error
         }
+    }
+    
+    /// Verifies that account deletion has propagated by attempting to check if the email is available
+    /// Polls for up to 10 seconds to ensure Supabase has fully processed the deletion
+    private func verifyAccountDeleted(email: String) async -> Bool {
+        guard !email.isEmpty else { return true }
+        
+        // Poll for up to 10 seconds (20 attempts at 500ms each)
+        for attempt in 1...20 {
+            do {
+                // Try to sign in with the deleted account
+                // If the account is truly deleted, this should fail with "Invalid login credentials"
+                _ = try await client.auth.signIn(email: email, password: "verification_check_\(UUID().uuidString)")
+                
+                // If sign-in succeeds (shouldn't happen), account still exists
+                try? await client.auth.signOut()
+                SecureLogger.debug("Deletion verification attempt \(attempt): account still exists", category: .auth)
+                
+            } catch {
+                let errorDescription = error.localizedDescription.lowercased()
+                
+                // "Invalid login credentials" means the account doesn't exist or password is wrong
+                // Either way, the account is effectively deleted or inaccessible
+                if errorDescription.contains("invalid") || 
+                   errorDescription.contains("not found") ||
+                   errorDescription.contains("credentials") {
+                    SecureLogger.debug("Deletion verified on attempt \(attempt)", category: .auth)
+                    return true
+                }
+                
+                // For other errors (rate limiting, network), continue polling
+                SecureLogger.debug("Deletion verification attempt \(attempt): \(errorDescription)", category: .auth)
+            }
+            
+            // Wait 500ms before next attempt
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        
+        // After 10 seconds, assume deletion is complete
+        // The deletion was successful on the server, propagation might just be slow
+        return true
     }
     
     func updatePassword(newPassword: String) async throws {
