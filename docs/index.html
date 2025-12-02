@@ -44,19 +44,17 @@
             color: #666;
             margin-bottom: 40px;
         }
-        .badge {
+        .app-store-badge {
             display: inline-block;
-            background: #000;
-            color: #fff;
-            padding: 12px 24px;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 500;
             margin-bottom: 40px;
-            text-decoration: none;
+            transition: opacity 0.2s ease;
         }
-        .badge:hover {
-            background: #333;
+        .app-store-badge:hover {
+            opacity: 0.8;
+        }
+        .app-store-badge img {
+            height: 50px;
+            width: auto;
         }
         .links {
             display: flex;
@@ -114,7 +112,9 @@
         <h1>Final Round</h1>
         <p class="tagline">AI-Powered Interview Practice Coach</p>
         
-        <a href="#" class="badge">📱 Coming Soon to App Store</a>
+        <a href="https://apps.apple.com/sg/app/finalround-ai/id6755817745" class="app-store-badge" target="_blank" rel="noopener noreferrer">
+            <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store">
+        </a>
         
         <div class="features">
             <h2>Features</h2>
