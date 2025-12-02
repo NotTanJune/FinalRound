@@ -6,10 +6,15 @@ struct LoginView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var supabase = SupabaseService.shared
     
-    // Form fields
+    // Form fields with character limits
     @State private var email = ""
     @State private var password = ""
     @State private var fullName = ""
+    
+    // Security: Input validation state
+    @State private var emailValidationError: String?
+    @State private var passwordValidationError: String?
+    @State private var nameValidationError: String?
     
     // UI state
     @State private var isCreatingAccount = false
@@ -70,9 +75,18 @@ struct LoginView: View {
                     // Full Name (Create Account only)
                     if isCreatingAccount {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Full Name")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(AppTheme.textSecondary)
+                            HStack {
+                                Text("Full Name")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(AppTheme.textSecondary)
+                                Spacer()
+                                // Security: Character count indicator
+                                if fullName.count > InputSanitizer.Limits.fullName - 20 {
+                                    Text("\(fullName.count)/\(InputSanitizer.Limits.fullName)")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(fullName.count > InputSanitizer.Limits.fullName ? AppTheme.softRed : AppTheme.textSecondary)
+                                }
+                            }
                             
                             ZStack(alignment: .leading) {
                                 if fullName.isEmpty {
@@ -82,7 +96,7 @@ struct LoginView: View {
                                         .padding(.horizontal, 16)
                                 }
                                 TextField("", text: $fullName)
-                                    .textFieldStyle(LoginTextFieldStyle(hasError: false))
+                                    .textFieldStyle(LoginTextFieldStyle(hasError: nameValidationError != nil))
                                     .textContentType(.name)
                                     .autocorrectionDisabled(true)
                                     .focused($focusedField, equals: .name)
@@ -90,6 +104,20 @@ struct LoginView: View {
                                     .onSubmit {
                                         handleKeyboardAction()
                                     }
+                                    // Security: Enforce character limit
+                                    .onChange(of: fullName) { _, newValue in
+                                        if newValue.count > InputSanitizer.Limits.fullName {
+                                            fullName = String(newValue.prefix(InputSanitizer.Limits.fullName))
+                                        }
+                                        nameValidationError = validateName()
+                                    }
+                            }
+                            
+                            // Validation error message
+                            if let error = nameValidationError {
+                                Text(error)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(AppTheme.softRed)
                             }
                         }
                         .transition(.opacity.combined(with: .move(edge: .top)))
@@ -109,7 +137,7 @@ struct LoginView: View {
                                     .padding(.horizontal, 16)
                             }
                             TextField("", text: $email)
-                                .textFieldStyle(LoginTextFieldStyle(hasError: false))
+                                .textFieldStyle(LoginTextFieldStyle(hasError: emailValidationError != nil))
                                 .keyboardType(.emailAddress)
                                 .textContentType(.emailAddress)
                                 .textInputAutocapitalization(.never)
@@ -119,6 +147,20 @@ struct LoginView: View {
                                 .onSubmit {
                                     handleKeyboardAction()
                                 }
+                                // Security: Enforce character limit and validate
+                                .onChange(of: email) { _, newValue in
+                                    if newValue.count > InputSanitizer.Limits.email {
+                                        email = String(newValue.prefix(InputSanitizer.Limits.email))
+                                    }
+                                    emailValidationError = validateEmail()
+                                }
+                        }
+                        
+                        // Validation error message
+                        if let error = emailValidationError {
+                            Text(error)
+                                .font(.system(size: 12))
+                                .foregroundStyle(AppTheme.softRed)
                         }
                     }
                     
@@ -139,21 +181,35 @@ struct LoginView: View {
                                 
                                 if isPasswordVisible {
                                     TextField("", text: $password)
-                                        .textFieldStyle(LoginTextFieldStyle(hasError: passwordHasError))
+                                        .textFieldStyle(LoginTextFieldStyle(hasError: passwordHasError || passwordValidationError != nil))
                                         .textContentType(isCreatingAccount ? .newPassword : .password)
                                         .focused($focusedField, equals: .password)
                                         .submitLabel(isFormValid ? (isCreatingAccount ? .go : .go) : .done)
                                         .onSubmit {
                                             handleKeyboardAction()
                                         }
+                                        // Security: Enforce character limit
+                                        .onChange(of: password) { _, newValue in
+                                            if newValue.count > InputSanitizer.Limits.password {
+                                                password = String(newValue.prefix(InputSanitizer.Limits.password))
+                                            }
+                                            passwordValidationError = validatePassword()
+                                        }
                                 } else {
                                     SecureField("", text: $password)
-                                        .textFieldStyle(LoginTextFieldStyle(hasError: passwordHasError))
+                                        .textFieldStyle(LoginTextFieldStyle(hasError: passwordHasError || passwordValidationError != nil))
                                         .textContentType(isCreatingAccount ? .newPassword : .password)
                                         .focused($focusedField, equals: .password)
                                         .submitLabel(isFormValid ? (isCreatingAccount ? .go : .go) : .done)
                                         .onSubmit {
                                             handleKeyboardAction()
+                                        }
+                                        // Security: Enforce character limit
+                                        .onChange(of: password) { _, newValue in
+                                            if newValue.count > InputSanitizer.Limits.password {
+                                                password = String(newValue.prefix(InputSanitizer.Limits.password))
+                                            }
+                                            passwordValidationError = validatePassword()
                                         }
                                 }
                             }
@@ -173,6 +229,13 @@ struct LoginView: View {
                             .padding(.trailing, 4)
                         }
                         .offset(x: shakeOffset)
+                        
+                        // Validation error message
+                        if let error = passwordValidationError {
+                            Text(error)
+                                .font(.system(size: 12))
+                                .foregroundStyle(AppTheme.softRed)
+                        }
                     }
                 }
                 .padding(20)
@@ -314,11 +377,43 @@ struct LoginView: View {
     }
     
     private var isFormValid: Bool {
+        // Security: Validate all inputs
+        let emailValid = InputSanitizer.isValidEmail(email)
+        let passwordValid = InputSanitizer.isValidPassword(password).isValid
+        
         if isCreatingAccount {
-            return !email.isEmpty && !password.isEmpty && !fullName.trimmingCharacters(in: .whitespaces).isEmpty
+            let nameValid = !fullName.trimmingCharacters(in: .whitespaces).isEmpty &&
+                            fullName.count <= InputSanitizer.Limits.fullName
+            return emailValid && passwordValid && nameValid
         } else {
-            return !email.isEmpty && !password.isEmpty
+            return emailValid && passwordValid
         }
+    }
+    
+    // Security: Detailed validation for showing errors
+    private func validateEmail() -> String? {
+        guard !email.isEmpty else { return nil }
+        if email.count > InputSanitizer.Limits.email {
+            return "Email is too long"
+        }
+        if !InputSanitizer.isValidEmail(email) {
+            return "Please enter a valid email address"
+        }
+        return nil
+    }
+    
+    private func validatePassword() -> String? {
+        guard !password.isEmpty else { return nil }
+        let result = InputSanitizer.isValidPassword(password)
+        return result.isValid ? nil : result.message
+    }
+    
+    private func validateName() -> String? {
+        guard !fullName.isEmpty else { return nil }
+        if fullName.count > InputSanitizer.Limits.fullName {
+            return "Name is too long (max \(InputSanitizer.Limits.fullName) characters)"
+        }
+        return nil
     }
     
     private var keyboardButtonText: String {

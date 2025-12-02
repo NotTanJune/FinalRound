@@ -26,7 +26,7 @@ struct RecommendedJobsView: View {
                         .foregroundStyle(AppTheme.textPrimary)
                     
                     if let profile = userProfile {
-                        Text("Based on your profile as \(profile.targetRole ?? "Professional")")
+                        Text("Based on your profile as \(profile.targetRole.isEmpty ? "Professional" : profile.targetRole)")
                             .font(.system(size: 15))
                             .foregroundStyle(AppTheme.textSecondary)
                     }
@@ -122,12 +122,14 @@ struct RecommendedJobsView: View {
     private func loadJobsWithCategories() async {
         guard let profile = userProfile else { return }
         
-        // Check cache first
-        if let cached = JobCache.shared.getCachedJobsWithCategories(for: profile.id) {
+        // Check cache first - but only if location matches current profile
+        if let location = profile.location, !location.isEmpty,
+           let cached = JobCache.shared.getCachedJobsWithCategories(for: profile.id) {
             await MainActor.run {
                 self.categories = cached.categories
                 self.allJobs = cached.jobs
             }
+            SecureLogger.debug("Using cached jobs for location: \(location)", category: .api)
             return
         }
         
@@ -138,10 +140,18 @@ struct RecommendedJobsView: View {
         do {
             let role = profile.targetRole
             let skills = profile.skills
+            let location = profile.location
+            let currency = profile.currency
             
-            print("🔍 Fetching jobs with categories for \(role)...")
+            SecureLogger.debug("Fetching jobs with categories for role", category: .api)
             
-            let result = try await groqService.searchJobsWithCategories(role: role, skills: skills)
+            // Pass all profile data including location and currency for personalized results
+            let result = try await groqService.searchJobsWithCategories(
+                role: role,
+                skills: skills,
+                location: location,
+                currency: currency
+            )
             
             // Cache the results
             JobCache.shared.cacheJobsWithCategories(result, for: profile.id)
@@ -152,9 +162,9 @@ struct RecommendedJobsView: View {
                 self.isLoadingJobs = false
             }
             
-            print("✅ Successfully loaded \(result.jobs.count) jobs in \(result.categories.count) categories")
+            SecureLogger.info("Successfully loaded \(result.jobs.count) jobs in \(result.categories.count) categories", category: .api)
         } catch let error as NSError where error.domain == NSURLErrorDomain && error.code == NSURLErrorTimedOut {
-            print("⏱️ Request timed out, using fallback jobs")
+            SecureLogger.warning("Request timed out, using fallback jobs", category: .api)
             await MainActor.run {
                 let fallback = createFallbackJobsWithCategories(for: profile)
                 self.categories = fallback.categories
@@ -162,7 +172,7 @@ struct RecommendedJobsView: View {
                 self.isLoadingJobs = false
             }
         } catch {
-            print("❌ Failed to load jobs with categories: \(error)")
+            SecureLogger.error("Failed to load jobs with categories", category: .api)
             await MainActor.run {
                 let fallback = createFallbackJobsWithCategories(for: profile)
                 self.categories = fallback.categories
@@ -173,74 +183,144 @@ struct RecommendedJobsView: View {
     }
     
     private func createFallbackJobsWithCategories(for profile: UserProfile) -> JobSearchResult {
-        let role = profile.targetRole ?? "Software Engineer"
+        let role = profile.targetRole.isEmpty ? "Professional" : profile.targetRole
         let skills = profile.skills
+        let location = profile.location ?? "Remote"
+        let currency = profile.currency ?? "USD"
+        let currencySymbol = getCurrencySymbol(for: currency)
         
-        // Determine categories based on skills
+        // Determine categories based on the user's role and skills
         var cats: [String] = []
-        if skills.contains(where: { $0.lowercased().contains("software") || $0.lowercased().contains("engineer") }) {
-            cats.append("software")
+        
+        let roleLower = role.lowercased()
+        let skillsLower = skills.map { $0.lowercased() }
+        
+        // Infer categories from user's actual role
+        if roleLower.contains("software") || roleLower.contains("engineer") || roleLower.contains("developer") {
+            cats.append("engineering")
         }
-        if skills.contains(where: { $0.lowercased().contains("design") || $0.lowercased().contains("ui") }) {
+        if roleLower.contains("product") || roleLower.contains("pm") {
+            cats.append("product")
+        }
+        if roleLower.contains("design") || roleLower.contains("ux") || roleLower.contains("ui") {
             cats.append("design")
         }
-        if skills.contains(where: { $0.lowercased().contains("data") || $0.lowercased().contains("analyst") }) {
+        if roleLower.contains("data") || roleLower.contains("analyst") || roleLower.contains("science") {
             cats.append("data")
+        }
+        if roleLower.contains("marketing") || roleLower.contains("sales") || roleLower.contains("business") {
+            cats.append("business")
+        }
+        if roleLower.contains("manager") || roleLower.contains("director") || roleLower.contains("vp") || 
+           roleLower.contains("president") || roleLower.contains("executive") || roleLower.contains("lead") {
+            cats.append("leadership")
+        }
+        
+        // Also check skills if no categories from role
+        if cats.isEmpty {
+            for skill in skillsLower {
+                if skill.contains("software") || skill.contains("code") || skill.contains("programming") {
+                    cats.append("engineering")
+                    break
+                }
+            }
         }
         
         // Default categories if none matched
         if cats.isEmpty {
-            cats = ["software", "design", "product"]
-        } else if cats.count < 3 {
-            cats.append("product")
+            cats = ["general", "leadership", "operations"]
         }
         
-        let fallbackJobs: [JobPost] = cats.flatMap { category in
-            [
-                JobPost(
-                    role: "Senior \(category.capitalized) Engineer",
-                    company: "Tech Corp",
-                    location: "Remote",
-                    salary: "$120k-$160k",
-                    tags: Array(skills.prefix(2)),
-                    description: "Work on innovative projects in \(category).",
-                    responsibilities: ["Lead development", "Mentor team", "Drive innovation"],
-                    category: category,
-                    logoName: iconForCategory(category)
-                ),
-                JobPost(
-                    role: "\(category.capitalized) Specialist",
-                    company: "Innovation Labs",
-                    location: "San Francisco, CA",
-                    salary: "$100k-$140k",
-                    tags: Array(skills.prefix(2)),
-                    description: "Join our \(category) team.",
-                    responsibilities: ["Build features", "Collaborate", "Ensure quality"],
-                    category: category,
-                    logoName: iconForCategory(category)
-                )
-            ]
+        // Ensure we have at least 2-3 categories
+        if cats.count == 1 {
+            cats.append("general")
         }
         
-        return JobSearchResult(categories: cats, jobs: fallbackJobs)
+        // Create fallback jobs that are RELEVANT to the user's actual role
+        var fallbackJobs: [JobPost] = []
+        
+        // Add role-specific jobs
+        fallbackJobs.append(contentsOf: [
+            JobPost(
+                role: "Senior \(role)",
+                company: "Global Tech",
+                location: location,
+                salary: "\(currencySymbol)150k-\(currencySymbol)200k",
+                tags: Array(skills.prefix(3)),
+                description: "Lead strategic initiatives as a \(role) at a growing company.",
+                responsibilities: ["Drive strategic direction", "Lead cross-functional teams", "Deliver results"],
+                category: cats.first ?? "leadership",
+                logoName: iconForCategory(cats.first ?? "leadership")
+            ),
+            JobPost(
+                role: "\(role)",
+                company: "Innovation Corp",
+                location: location,
+                salary: "\(currencySymbol)120k-\(currencySymbol)160k",
+                tags: Array(skills.prefix(3)),
+                description: "Join our team as \(role) and make an impact.",
+                responsibilities: ["Execute strategy", "Collaborate with stakeholders", "Drive growth"],
+                category: cats.first ?? "general",
+                logoName: iconForCategory(cats.first ?? "general")
+            ),
+            JobPost(
+                role: "Director of \(role.replacingOccurrences(of: "Vice ", with: "").replacingOccurrences(of: "VP ", with: ""))",
+                company: "Enterprise Solutions",
+                location: location,
+                salary: "\(currencySymbol)180k-\(currencySymbol)250k",
+                tags: Array(skills.prefix(3)),
+                description: "Senior leadership opportunity for experienced professionals.",
+                responsibilities: ["Set vision and strategy", "Build and lead teams", "Report to executive leadership"],
+                category: "leadership",
+                logoName: iconForCategory("leadership")
+            )
+        ])
+        
+        // Add category-specific jobs with the user's role context
+        for (index, category) in cats.prefix(3).enumerated() {
+            fallbackJobs.append(JobPost(
+                role: "\(role) - \(category.capitalized) Focus",
+                company: ["TechStart", "GrowthCo", "NextGen Inc"][index % 3],
+                location: location,
+                salary: "\(currencySymbol)100k-\(currencySymbol)140k",
+                tags: Array(skills.prefix(2)),
+                description: "Opportunity for \(role) with \(category) expertise.",
+                responsibilities: ["Apply \(category) expertise", "Collaborate across teams", "Drive innovation"],
+                category: category,
+                logoName: iconForCategory(category)
+            ))
+        }
+        
+        return JobSearchResult(categories: Array(Set(cats)), jobs: fallbackJobs)
     }
+    
+    private func getCurrencySymbol(for currency: String) -> String {
+        let symbols: [String: String] = [
+            "USD": "$", "CAD": "CA$", "GBP": "£", "EUR": "€",
+            "INR": "₹", "CNY": "¥", "JPY": "¥", "AUD": "A$"
+        ]
+        return symbols[currency] ?? "$"
     }
     
     private func iconForCategory(_ category: String) -> String {
         let lowercased = category.lowercased()
-        if lowercased.contains("software") || lowercased.contains("engineer") || lowercased.contains("developer") {
+        if lowercased.contains("software") || lowercased.contains("engineer") || lowercased.contains("developer") || lowercased.contains("engineering") {
             return "curlybraces.square"
         } else if lowercased.contains("design") || lowercased.contains("ui") || lowercased.contains("ux") {
             return "pencil.and.outline"
-        } else if lowercased.contains("marketing") || lowercased.contains("sales") {
+        } else if lowercased.contains("marketing") || lowercased.contains("sales") || lowercased.contains("business") {
             return "megaphone.fill"
         } else if lowercased.contains("data") || lowercased.contains("analyst") {
             return "chart.bar.fill"
+        } else if lowercased.contains("leadership") || lowercased.contains("executive") || lowercased.contains("management") {
+            return "person.3.fill"
+        } else if lowercased.contains("product") {
+            return "cube.fill"
         } else {
             return "briefcase.fill"
         }
     }
-
+}
 
 #Preview {
     RecommendedJobsView(userProfile: nil)

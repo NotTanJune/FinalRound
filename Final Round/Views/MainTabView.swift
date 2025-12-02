@@ -411,7 +411,7 @@ struct HomeView: View {
             // Check if task was cancelled before starting
             try Task.checkCancellation()
             
-            let role = profile.targetRole ?? "Software Engineer"
+            let role = profile.targetRole.isEmpty ? "Software Engineer" : profile.targetRole
             let skills = profile.skills
             let location = profile.location
             let currency = profile.currency ?? "USD"
@@ -485,7 +485,7 @@ struct HomeView: View {
     }
     
     private func createFallbackJobs(for profile: UserProfile) -> [JobPost] {
-        let role = profile.targetRole ?? "Software Engineer"
+        let role = profile.targetRole.isEmpty ? "Software Engineer" : profile.targetRole
         return [
             JobPost(
                 role: "Senior \(role)",
