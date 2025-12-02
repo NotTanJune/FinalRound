@@ -275,12 +275,38 @@ struct ProfileView: View {
     @State private var showingImagePicker = false
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var isUploadingImage = false
+    @State private var isDeletingAccount = false
+    @State private var deleteError: String?
+    @State private var showDeleteError = false
     
     var body: some View {
         NavigationStack {
             ZStack {
                 AppTheme.background.ignoresSafeArea()
                 profileContent
+                
+                // Full-screen loading overlay during account deletion
+                if isDeletingAccount {
+                    Color.black.opacity(0.5)
+                        .ignoresSafeArea()
+                    
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .tint(.white)
+                        Text("Deleting account...")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.white)
+                        Text("Please wait while we remove your data")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.white.opacity(0.8))
+                    }
+                    .padding(32)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.black.opacity(0.7))
+                    )
+                }
             }
             .navigationTitle("Profile")
         }
@@ -294,6 +320,11 @@ struct ProfileView: View {
         } message: {
             Text("Are you sure you want to delete your account? This action cannot be undone.")
         }
+        .alert("Error", isPresented: $showDeleteError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(deleteError ?? "Failed to delete account. Please try again.")
+        }
         .task {
             await loadProfile()
         }
@@ -303,6 +334,7 @@ struct ProfileView: View {
                 await handleImageSelection(newItem)
             }
         }
+        .disabled(isDeletingAccount) // Disable all interaction during deletion
     }
     
     // MARK: - Extracted Views
@@ -478,13 +510,35 @@ struct ProfileView: View {
         Button("Cancel", role: .cancel) { }
         Button("Delete", role: .destructive) {
             Task {
-                do {
-                    try await supabase.deleteAccount()
-                    appState.deleteAccount()
-                } catch {
-                    print("Delete account error: \(error)")
-                }
+                await performAccountDeletion()
             }
+        }
+    }
+    
+    private func performAccountDeletion() async {
+        await MainActor.run {
+            isDeletingAccount = true
+        }
+        
+        do {
+            // This now waits for deletion to be verified
+            try await supabase.deleteAccount()
+            
+            // Small delay to ensure all cleanup is done
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            
+            await MainActor.run {
+                isDeletingAccount = false
+                // Clear all app state and transition to login
+                appState.deleteAccount()
+            }
+        } catch {
+            await MainActor.run {
+                isDeletingAccount = false
+                deleteError = "Failed to delete account: \(error.localizedDescription)"
+                showDeleteError = true
+            }
+            SecureLogger.error("Account deletion failed: \(error)", category: .auth)
         }
     }
     

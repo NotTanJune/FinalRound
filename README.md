@@ -1,18 +1,20 @@
-<p align="center">
-  <img src="splash.png" alt="Final Round" width="200"/>
-</p>
+<h1>Final Round</h1>
 
-<h1 align="center">Final Round</h1>
-
-<p align="center">
+<p>
   <strong>AI-Powered Mock Interview Coach — Built for ARM</strong>
 </p>
 
-<p align="center">
+<p>
   <em>Practice interviews with real-time feedback on eye contact, speech patterns, and confidence — all processed on-device using ARM's Neural Engine and Accelerate framework.</em>
 </p>
 
-<p align="center">
+<p>
+  <a href="https://apps.apple.com/sg/app/finalround-ai/id6755817745">
+    <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="50">
+  </a>
+</p>
+
+<p>
   <a href="#features">Features</a> •
   <a href="#arm-optimization">ARM Optimization</a> •
   <a href="#how-it-works">How It Works</a> •
@@ -312,12 +314,12 @@ delivers desktop-class ML performance with mobile-class power consumption - exac
 
 ---
 
-<p align="center">
+<p>
   <strong>Final Round — AI Interview Preparation</strong><br/>
   Built for the <a href="https://arm-ai-developer-challenge.devpost.com/">Arm AI Developer Challenge 2025</a>
 </p>
 
-<p align="center">
+<p>
   <sub>November 2025</sub>
 </p>
 

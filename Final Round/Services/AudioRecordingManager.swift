@@ -8,9 +8,55 @@ final class AudioRecordingManager: ObservableObject {
     
     private var audioRecorder: AVAudioRecorder?
     private var currentRecordingURL: URL?
+    private var wasInterrupted = false
     
     init() {
         checkAuthorization()
+        setupInterruptionHandling()
+    }
+    
+    private func setupInterruptionHandling() {
+        // Handle audio session interruptions (e.g., from screen recording, phone calls)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioSessionInterruption),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func handleAudioSessionInterruption(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        
+        switch type {
+        case .began:
+            print("⚠️ Audio session interrupted (screen recording or other app)")
+            wasInterrupted = true
+            // Don't stop recording here - let it continue if possible
+        case .ended:
+            print("✅ Audio session interruption ended")
+            wasInterrupted = false
+            // Try to resume if we have an active recorder
+            if let recorder = audioRecorder, !recorder.isRecording {
+                do {
+                    try AVAudioSession.sharedInstance().setActive(true)
+                    recorder.record()
+                    print("✅ Resumed recording after interruption")
+                } catch {
+                    print("⚠️ Could not resume recording: \(error.localizedDescription)")
+                }
+            }
+        @unknown default:
+            break
+        }
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
     
     func checkAuthorization() {
@@ -82,12 +128,30 @@ final class AudioRecordingManager: ObservableObject {
         }
     }
     
+    @discardableResult
     func stopRecording() -> URL? {
-        guard isRecording, let recorder = audioRecorder else {
+        // Be more lenient - try to stop even if isRecording is out of sync
+        // This can happen during screen recording interruptions
+        guard let recorder = audioRecorder else {
+            // Check if we have a URL from a previous recording that might still be valid
+            if let url = currentRecordingURL, FileManager.default.fileExists(atPath: url.path) {
+                print("⚠️ Recorder was nil but found existing recording file")
+                let savedURL = url
+                currentRecordingURL = nil
+                DispatchQueue.main.async {
+                    self.isRecording = false
+                }
+                return savedURL
+            }
+            print("⚠️ No active recorder to stop")
             return nil
         }
         
-        recorder.stop()
+        // Stop the recorder
+        if recorder.isRecording {
+            recorder.stop()
+        }
+        
         DispatchQueue.main.async {
             self.isRecording = false
         }
@@ -95,16 +159,39 @@ final class AudioRecordingManager: ObservableObject {
         let url = currentRecordingURL
         currentRecordingURL = nil
         audioRecorder = nil
+        wasInterrupted = false
         
         // Deactivate audio session
         do {
-            try AVAudioSession.sharedInstance().setActive(false)
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         } catch {
             print("⚠️ Failed to deactivate audio session: \(error.localizedDescription)")
         }
         
-        print("✅ Stopped recording, saved to: \(url?.lastPathComponent ?? "unknown")")
-        return url
+        // Verify the file exists and has content
+        if let url = url {
+            if FileManager.default.fileExists(atPath: url.path) {
+                do {
+                    let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+                    let fileSize = attributes[.size] as? Int64 ?? 0
+                    if fileSize > 0 {
+                        print("✅ Stopped recording, saved to: \(url.lastPathComponent) (\(fileSize) bytes)")
+                        return url
+                    } else {
+                        print("⚠️ Recording file is empty (screen recording may have interfered)")
+                        return nil
+                    }
+                } catch {
+                    print("⚠️ Could not check recording file: \(error.localizedDescription)")
+                    return url // Return it anyway, let caller handle
+                }
+            } else {
+                print("⚠️ Recording file does not exist")
+                return nil
+            }
+        }
+        
+        return nil
     }
     
     func deleteRecording(at url: URL) {

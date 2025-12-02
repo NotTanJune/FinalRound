@@ -317,11 +317,10 @@ struct ControlCircleButton: View {
         let recordingURL: URL?
         if session.enableAudioRecording {
             recordingURL = audioManager.stopRecording()
-            guard recordingURL != nil else {
-                print("❌ No recording to process")
-                isTransitioning = false
-                isProcessingAnswer = false
-                return
+            // Note: recordingURL can be nil if screen recording interferes with audio
+            // We continue anyway and handle the nil case gracefully below
+            if recordingURL == nil {
+                print("⚠️ No audio recording available (screen recording may be interfering)")
             }
         } else {
             recordingURL = nil
@@ -375,8 +374,18 @@ struct ControlCircleButton: View {
                         )
                         print("✅ Evaluation score: \(evaluation.score)")
                     }
+                } else if session.enableAudioRecording {
+                    // Audio recording was enabled but failed (e.g., screen recording interference)
+                    transcription = "Audio recording unavailable"
+                    evaluation = AnswerEvaluation(
+                        score: 0,
+                        strengths: [],
+                        improvements: ["Audio recording was interrupted. This can happen during screen recording."],
+                        feedback: "Audio recording was unavailable for this answer. Screen recording may interfere with the microphone."
+                    )
+                    print("⚠️ Audio recording was enabled but no recording was captured")
                 } else {
-                    // No recording, use placeholder
+                    // No recording, audio was disabled
                     transcription = "No audio recorded"
                     evaluation = AnswerEvaluation(
                         score: 0,
