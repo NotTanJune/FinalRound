@@ -308,7 +308,7 @@ Final Round demonstrates how ARM architecture enables sophisticated AI applicati
 - **Unified memory** for efficient data flow
 - **Hardware-accelerated** sensors
 
-delivers desktop-class ML performance with mobile-class power consumption — exactly what ARM architecture was designed to achieve.
+delivers desktop-class ML performance with mobile-class power consumption - exactly what ARM architecture was designed to achieve.
 
 ---
 
