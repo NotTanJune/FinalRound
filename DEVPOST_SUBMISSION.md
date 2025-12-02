@@ -120,21 +120,21 @@ I chose **Groq** for LLM inference because of its exceptional speed, critical fo
 
 ### 1. Real-Time Performance Balance
 
-Running face detection, audio analysis, and UI updates simultaneously without frame drops was our biggest challenge. Initial implementations caused thermal throttling after 5 minutes.
+Running face detection, audio analysis, and UI updates simultaneously without frame drops was my biggest challenge. Initial implementations caused thermal throttling after 5 minutes.
 
 **Solution:** I implemented a thermal-aware processing pipeline that reduces face tracking frequency when the device heats up, maintaining smooth performance during long practice sessions.
 
 ### 2. Privacy-First Face Processing
 
-Apple's App Store review flagged our TrueDepth usage, requiring detailed documentation of our face data practices.
+Apple's App Store review flagged my TrueDepth usage, requiring detailed documentation of my face data practices.
 
-**Solution:** I architected the system so raw face data *never* leaves the device. Only the calculated eye contact percentage (a simple number) is stored. I updated our privacy policy with explicit face data disclosures.
+**Solution:** I architected the system so raw face data *never* leaves the device. Only the calculated eye contact percentage (a simple number) is stored. I updated the privacy policy with explicit face data disclosures.
 
 ### 3. Groq API Integration for Real-Time Feedback
 
 Getting Groq's responses fast enough to feel "conversational" required careful prompt engineering and response streaming.
 
-**Solution:** I optimized our prompts for conciseness and implemented streaming responses so feedback appears progressively, reducing perceived latency.
+**Solution:** I optimized my prompts for conciseness and implemented streaming responses so feedback appears progressively, reducing perceived latency.
 
 ### 4. Graceful Degradation Across Devices
 
