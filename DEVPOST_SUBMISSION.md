@@ -45,14 +45,14 @@ Final Round is built entirely in **Swift** using **SwiftUI**, designed from the 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        SwiftUI Interface                         │
+│                        SwiftUI Interface                        │
 ├─────────────────────────────────────────────────────────────────┤
 │  Camera Feed  │  Audio Capture  │  Groq API  │  Supabase Auth   │
 ├───────────────┼─────────────────┼────────────┼──────────────────┤
 │    ARKit      │   AVFoundation  │  URLSession │  Supabase SDK   │
 ├───────────────┴─────────────────┴────────────┴──────────────────┤
-│                    Apple Neural Engine (ANE)                     │
-│              Face Detection │ Gaze Estimation │ CoreML           │
+│                    Apple Neural Engine (ANE)                    │
+│              Face Detection │ Gaze Estimation │ CoreML          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
