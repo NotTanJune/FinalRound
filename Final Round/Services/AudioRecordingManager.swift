@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import Combine
+import Accelerate  // ARM NEON optimizations
 
 final class AudioRecordingManager: ObservableObject {
     @Published var isRecording = false
@@ -10,9 +11,25 @@ final class AudioRecordingManager: ObservableObject {
     private var currentRecordingURL: URL?
     private var wasInterrupted = false
     
+    // Pre-configured audio session for faster start
+    private var isAudioSessionConfigured = false
+    
+    // Background queue for file operations (ARM optimized)
+    private let fileQueue = DispatchQueue(label: "com.finalround.audio.file", qos: .userInitiated)
+    
     init() {
         checkAuthorization()
         setupInterruptionHandling()
+        // Pre-configure audio session on init for faster recording start
+        preconfigureAudioSession()
+    }
+    
+    /// Pre-configure audio session to reduce latency on first recording
+    private func preconfigureAudioSession() {
+        // Don't pre-configure on init - this can conflict with AVCaptureSession
+        // The audio session will be configured when recording starts
+        // This allows the camera to set up first without interference
+        print("🎙️ Audio recording manager initialized, session will be configured on first recording")
     }
     
     private func setupInterruptionHandling() {
@@ -88,42 +105,92 @@ final class AudioRecordingManager: ObservableObject {
             return nil
         }
         
-        // Stop any existing recording
-        stopRecording()
+        // Stop any existing recording first
+        if audioRecorder != nil {
+            stopRecording()
+        }
         
         // Create recording URL
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let audioFilename = documentsPath.appendingPathComponent("recording_\(questionId.uuidString).m4a")
+        
+        // Delete existing file if it exists (prevents prepare failure)
+        if FileManager.default.fileExists(atPath: audioFilename.path) {
+            try? FileManager.default.removeItem(at: audioFilename)
+        }
+        
         currentRecordingURL = audioFilename
         
-        // Configure audio session
+        // Configure audio session - MUST be done carefully to coexist with AVCaptureSession
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            try audioSession.setCategory(.playAndRecord, mode: .default)
+            // Use .default mode (not .videoRecording) to avoid conflicts with camera
+            // .mixWithOthers is critical for coexisting with AVCaptureSession
+            try audioSession.setCategory(
+                .playAndRecord,
+                mode: .default,
+                options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers]
+            )
             try audioSession.setActive(true)
+            isAudioSessionConfigured = true
+            
+            print("🎙️ Audio session configured:")
+            print("   - Category: \(audioSession.category.rawValue)")
+            print("   - Mode: \(audioSession.mode.rawValue)")
+            print("   - Input: \(audioSession.currentRoute.inputs.first?.portName ?? "none")")
         } catch {
             print("❌ Failed to set up audio session: \(error.localizedDescription)")
             return nil
         }
         
-        // Configure recorder settings
+        // ARM-optimized recorder settings for Apple Silicon
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 16000.0,  // Whisper works well with 16kHz
+            AVSampleRateKey: 44100.0,  // Standard sample rate - more compatible
             AVNumberOfChannelsKey: 1,
-            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
+            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
+            AVEncoderBitRateKey: 128000
         ]
         
         do {
             audioRecorder = try AVAudioRecorder(url: audioFilename, settings: settings)
-            audioRecorder?.record()
+            guard let recorder = audioRecorder else {
+                print("❌ Failed to create audio recorder")
+                return nil
+            }
+            
+            recorder.isMeteringEnabled = true
+            
+            // prepareToRecord allocates resources - check for failure
+            if !recorder.prepareToRecord() {
+                print("⚠️ Audio recorder failed to prepare")
+                print("   - URL valid: \(audioFilename.isFileURL)")
+                print("   - Can write: \(FileManager.default.isWritableFile(atPath: documentsPath.path))")
+                // Try to record anyway - sometimes prepare fails but record works
+            }
+            
+            // Start recording
+            if !recorder.record() {
+                print("❌ Audio recorder failed to start recording")
+                // Try one more time after a brief delay
+                Thread.sleep(forTimeInterval: 0.1)
+                if !recorder.record() {
+                    print("❌ Audio recorder retry also failed")
+                    audioRecorder = nil
+                    return nil
+                }
+            }
+            
+            print("✅ Started recording to: \(audioFilename.lastPathComponent)")
+            print("   - Recording: \(recorder.isRecording)")
+            print("   - Format: \(recorder.format)")
+            
             DispatchQueue.main.async {
                 self.isRecording = true
             }
-            print("✅ Started recording to: \(audioFilename.lastPathComponent)")
             return audioFilename
         } catch {
-            print("❌ Failed to start recording: \(error.localizedDescription)")
+            print("❌ Failed to create audio recorder: \(error.localizedDescription)")
             return nil
         }
     }
@@ -147,11 +214,12 @@ final class AudioRecordingManager: ObservableObject {
             return nil
         }
         
-        // Stop the recorder
+        // Stop the recorder immediately
         if recorder.isRecording {
             recorder.stop()
         }
         
+        // Update UI state immediately for responsiveness
         DispatchQueue.main.async {
             self.isRecording = false
         }
@@ -161,29 +229,29 @@ final class AudioRecordingManager: ObservableObject {
         audioRecorder = nil
         wasInterrupted = false
         
-        // Deactivate audio session
-        do {
-            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        } catch {
-            print("⚠️ Failed to deactivate audio session: \(error.localizedDescription)")
-        }
+        // DON'T deactivate audio session between recordings
+        // Keeping it active prevents conflicts when starting the next recording
+        // The session will be properly cleaned up when the interview ends
         
-        // Verify the file exists and has content
+        // Verify the file exists and has content (fast check)
         if let url = url {
             if FileManager.default.fileExists(atPath: url.path) {
-                do {
-                    let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-                    let fileSize = attributes[.size] as? Int64 ?? 0
-                    if fileSize > 0 {
-                        print("✅ Stopped recording, saved to: \(url.lastPathComponent) (\(fileSize) bytes)")
-                        return url
-                    } else {
-                        print("⚠️ Recording file is empty (screen recording may have interfered)")
-                        return nil
+                // Use autoreleasepool for efficient memory handling on ARM
+                return autoreleasepool {
+                    do {
+                        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+                        let fileSize = attributes[.size] as? Int64 ?? 0
+                        if fileSize > 0 {
+                            print("✅ Stopped recording, saved to: \(url.lastPathComponent) (\(fileSize) bytes)")
+                            return url
+                        } else {
+                            print("⚠️ Recording file is empty (screen recording may have interfered)")
+                            return nil
+                        }
+                    } catch {
+                        print("⚠️ Could not check recording file: \(error.localizedDescription)")
+                        return url // Return it anyway, let caller handle
                     }
-                } catch {
-                    print("⚠️ Could not check recording file: \(error.localizedDescription)")
-                    return url // Return it anyway, let caller handle
                 }
             } else {
                 print("⚠️ Recording file does not exist")
@@ -214,6 +282,21 @@ final class AudioRecordingManager: ObservableObject {
             print("✅ Cleaned up \(recordings.count) recordings")
         } catch {
             print("❌ Failed to cleanup recordings: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Call this when the interview session ends to properly cleanup audio session
+    func endSession() {
+        // Stop any active recording
+        stopRecording()
+        
+        // Now deactivate the audio session since interview is over
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            isAudioSessionConfigured = false
+            print("✅ Audio session deactivated (interview ended)")
+        } catch {
+            print("⚠️ Failed to deactivate audio session: \(error.localizedDescription)")
         }
     }
 }

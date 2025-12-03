@@ -38,6 +38,10 @@ class AppState: ObservableObject {
     // Signal to dismiss overlays (e.g., setup/session fullScreenCovers)
     @Published var overlayDismissToken = 0
     
+    // Transition state for smooth navigation from session summary
+    @Published var isNavigatingFromSession = false
+    @Published var sessionJustSaved = false
+    
     // Preloaded data
     @Published var preloadedProfile: UserProfile?
     @Published var preloadedProfileImage: UIImage?

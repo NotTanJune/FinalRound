@@ -76,9 +76,9 @@ struct LoginView: View {
                     if isCreatingAccount {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text("Full Name")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(AppTheme.textSecondary)
+                            Text("Full Name")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(AppTheme.textSecondary)
                                 Spacer()
                                 // Security: Character count indicator
                                 if fullName.count > InputSanitizer.Limits.fullName - 20 {

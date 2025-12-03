@@ -93,6 +93,9 @@ struct HomeView: View {
     @State private var showingURLGenerator = false
     @State private var jobLoadingTask: Task<Void, Never>?
     
+    // Data loading state - prevents redundant loads when switching tabs
+    @State private var hasLoadedInitialData = false
+    
     // URL Parser state
     @State private var isParsingURL = false
     @State private var urlParseError: String?
@@ -316,7 +319,21 @@ struct HomeView: View {
                 Text(urlParseError ?? "Failed to parse job URL")
             }
             .task {
-                await loadUserProfile()
+                // Only load data on first appearance to preserve state when switching tabs
+                if !hasLoadedInitialData {
+                    await loadUserProfile()
+                    hasLoadedInitialData = true
+                }
+            }
+            .onAppear {
+                // Use cached data from AppState if available (faster than re-fetching)
+                if userProfile == nil, let cached = appState.preloadedProfile {
+                    userProfile = cached
+                    profileImage = appState.preloadedProfileImage
+                    if !appState.preloadedRecommendedJobs.isEmpty {
+                        recommendedJobs = appState.preloadedRecommendedJobs
+                    }
+                }
             }
         }
     }
@@ -358,6 +375,8 @@ struct HomeView: View {
             
             await MainActor.run {
                 self.userProfile = profile
+                // Cache in AppState for faster access on tab switches
+                appState.preloadedProfile = profile
             }
             
             // Load avatar image if available
@@ -367,6 +386,8 @@ struct HomeView: View {
                let image = UIImage(data: data) {
                 await MainActor.run {
                     self.profileImage = image
+                    // Cache in AppState
+                    appState.preloadedProfileImage = image
                 }
             }
             
@@ -441,6 +462,8 @@ struct HomeView: View {
             await MainActor.run {
                 self.recommendedJobs = finalJobs
                 self.isLoadingJobs = false
+                // Cache in AppState for faster tab switches
+                appState.preloadedRecommendedJobs = finalJobs
             }
             
             print("✅ Successfully loaded \(finalJobs.count) jobs")

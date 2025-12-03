@@ -193,37 +193,46 @@ struct InterviewSessionView: View {
                 
                 // Controls Below Camera
                 if hasStarted {
+                    let isButtonsDisabled = isEndingSession || isTransitioning
+                    
                     HStack(spacing: 20) {
                         Button {
                             skipQuestion()
                         } label: {
                             Text("Skip")
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(isEndingSession ? AppTheme.textSecondary : AppTheme.textPrimary)
+                                .foregroundStyle(isButtonsDisabled ? AppTheme.textSecondary : AppTheme.textPrimary)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
                                 .background(AppTheme.cardBackground)
                                 .cornerRadius(16)
                         }
-                        .disabled(isEndingSession)
-                        .opacity(isEndingSession ? 0.5 : 1)
+                        .disabled(isButtonsDisabled)
+                        .opacity(isButtonsDisabled ? 0.5 : 1)
                         
                         Button {
                             answerQuestion()
                         } label: {
-                            Text(currentQuestionIndex < session.questions.count - 1 ? "Next" : "Finish")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(isEndingSession ? AppTheme.primary.opacity(0.5) : AppTheme.primary)
-                                .cornerRadius(16)
+                            HStack(spacing: 8) {
+                                if isTransitioning && !isEndingSession {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .scaleEffect(0.8)
+                                }
+                                Text(currentQuestionIndex < session.questions.count - 1 ? "Next" : "Finish")
+                            }
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(isButtonsDisabled ? AppTheme.primary.opacity(0.5) : AppTheme.primary)
+                            .cornerRadius(16)
                         }
-                        .disabled(isEndingSession)
-                        .opacity(isEndingSession ? 0.5 : 1)
+                        .disabled(isButtonsDisabled)
+                        .opacity(isButtonsDisabled ? 0.5 : 1)
                     }
                     .padding(.horizontal, 20)
-                    .animation(.easeInOut(duration: 0.2), value: isEndingSession)
+                    .animation(.easeInOut(duration: 0.2), value: isButtonsDisabled)
                 }
                 
                 // End Call Button (Smaller)
@@ -241,11 +250,11 @@ struct InterviewSessionView: View {
                             .font(.system(size: 20))
                             .foregroundStyle(.white)
                             .frame(width: 56, height: 56)
-                            .background(AppTheme.softRed)
+                            .background(isTransitioning ? AppTheme.softRed.opacity(0.5) : AppTheme.softRed)
                             .clipShape(Circle())
                     }
                 }
-                .disabled(isEndingSession)
+                .disabled(isEndingSession || isTransitioning)
                 .padding(.bottom, 20)
             }
         }
@@ -309,16 +318,17 @@ struct ControlCircleButton: View {
         isTransitioning = true
         isProcessingAnswer = true
         
-        // Capture analytics data
-        let eyeContactMetrics = eyeContactAnalyzer.stopTracking()
+        // Capture time spent synchronously (lightweight)
         let timeSpent = questionStartTime.map { Date().timeIntervalSince($0) }
         
-        // Stop audio recording if enabled
+        // IMPORTANT: Stop audio and eye tracking on main thread - AVAudioRecorder requires this
+        // Moving to background Task.detached breaks the recorder (files end up empty)
+        let eyeContactMetrics = eyeContactAnalyzer.stopTracking()
+        
+        // Stop audio recording if enabled - MUST be on main thread
         let recordingURL: URL?
         if session.enableAudioRecording {
             recordingURL = audioManager.stopRecording()
-            // Note: recordingURL can be nil if screen recording interferes with audio
-            // We continue anyway and handle the nil case gracefully below
             if recordingURL == nil {
                 print("⚠️ No audio recording available (screen recording may be interfering)")
             }
@@ -327,7 +337,7 @@ struct ControlCircleButton: View {
         }
         
         // Process the recording asynchronously
-        Task {
+        Task(priority: .userInitiated) {
             do {
                 let transcription: String
                 let evaluation: AnswerEvaluation
@@ -564,20 +574,46 @@ struct ControlCircleButton: View {
         
         print("📊 Session Stats: Answered: \(session.answeredCount), Skipped: \(session.skippedCount), Total: \(session.totalQuestions)")
         
-        // Save session to Supabase
+        // Save session to Supabase with retry logic
         isSavingSession = true
         Task {
-            do {
-                try await supabase.saveInterviewSession(session)
-                print("✅ Session saved to Supabase")
-                
-                // Add the new session to the preloaded cache so it shows up immediately in Preps
-                await MainActor.run {
-                    // Insert at the beginning (most recent first)
-                    appState.preloadedSessions.insert(session, at: 0)
+            var saveSucceeded = false
+            
+            // Warm up connection before save (connection may be stale after interview)
+            await SupabaseService.shared.aggressiveWarmUp()
+            
+            // Retry up to 3 times
+            for attempt in 1...3 {
+                do {
+                    try await supabase.saveInterviewSession(session)
+                    print("✅ Session saved to Supabase (attempt \(attempt))")
+                    saveSucceeded = true
+                    
+                    // Add the new session to the preloaded cache so it shows up immediately in Preps
+                    await MainActor.run {
+                        // Insert at the beginning (most recent first)
+                        appState.preloadedSessions.insert(session, at: 0)
+                        // Signal that a session was just saved (prevents Supabase refetch race)
+                        appState.sessionJustSaved = true
+                    }
+                    break
+                } catch {
+                    print("❌ Failed to save session (attempt \(attempt)): \(error.localizedDescription)")
+                    
+                    if attempt < 3 {
+                        // Short delay before retry
+                        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+                    }
                 }
-            } catch {
-                print("❌ Failed to save session: \(error.localizedDescription)")
+            }
+            
+            if !saveSucceeded {
+                print("❌ Session save failed after 3 attempts - session stored locally only")
+                // Still add to preloaded so user sees it, even if not saved to cloud
+                await MainActor.run {
+                    appState.preloadedSessions.insert(session, at: 0)
+                    appState.sessionJustSaved = true
+                }
             }
             
             await MainActor.run {
@@ -600,20 +636,33 @@ struct ControlCircleButton: View {
     }
     
     private func navigateToTab(_ tab: Int) {
-        // Pre-set the target tab (user won't see this yet since overlays are covering)
-        appState.selectedTab = tab
+        // Signal that we're navigating from a session (for smooth transition)
+        appState.isNavigatingFromSession = true
         
-        // Step 1: Dismiss the summary sheet
-        showingSummary = false
+        // Pre-set the target tab with animation
+        withAnimation(.easeInOut(duration: 0.3)) {
+            appState.selectedTab = tab
+        }
         
-        // Step 2: Wait for sheet dismiss animation (~0.4s)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            // Step 3: Dismiss InterviewSessionView (inner fullScreenCover)
+        // Step 1: Dismiss the summary sheet with a slight delay for visual smoothness
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.easeOut(duration: 0.35)) {
+                showingSummary = false
+            }
+        }
+        
+        // Step 2: Wait for sheet dismiss animation, then dismiss InterviewSessionView
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
             dismiss()
             
-            // Step 4: Wait for inner fullScreenCover to dismiss (~0.4s), then dismiss outer
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // Step 3: Wait for fullScreenCover to dismiss, then trigger outer dismissal
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                 appState.overlayDismissToken += 1
+                
+                // Reset navigation state after all transitions complete
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    appState.isNavigatingFromSession = false
+                }
             }
         }
     }
@@ -835,8 +884,14 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureFileOutputRecord
         print("📷 Existing outputs: \(captureSession.outputs.count)")
         
         captureSession.beginConfiguration()
+        
+        // CRITICAL: Don't let AVCaptureSession configure audio - we use separate AVAudioRecorder
+        // This prevents conflicts where the camera claims exclusive audio access
+        captureSession.automaticallyConfiguresApplicationAudioSession = false
+        
         captureSession.sessionPreset = .high  // Use high quality for iPhone 15 Pro
         print("📷 Session preset set to: \(captureSession.sessionPreset.rawValue)")
+        print("📷 Auto-configure audio session: \(captureSession.automaticallyConfiguresApplicationAudioSession)")
 
         // Prefer front camera for interview practice
         let discoverySession = AVCaptureDevice.DiscoverySession(

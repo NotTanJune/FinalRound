@@ -28,6 +28,9 @@ struct ResultsView: View {
     @State private var selectedSession: InterviewSession?
     @State private var sessionToDelete: InterviewSession?
     @State private var showingDeleteAlert = false
+    @State private var isDeleting = false
+    @State private var deleteError: String?
+    @State private var showDeleteError = false
     
     var body: some View {
         NavigationStack {
@@ -109,6 +112,32 @@ struct ResultsView: View {
         } message: {
             Text("Are you sure you want to delete this interview session? This action cannot be undone.")
         }
+        .alert("Error", isPresented: $showDeleteError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(deleteError ?? "Failed to delete session")
+        }
+        .overlay {
+            if isDeleting {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .overlay {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .scaleEffect(1.2)
+                                .tint(.white)
+                            Text("Deleting...")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.white)
+                        }
+                        .padding(24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.black.opacity(0.7))
+                        )
+                    }
+            }
+        }
         .task(id: appState.selectedTab) {
             // Reload sessions whenever this tab becomes active
             // forceRefresh ensures we get the latest data from Supabase
@@ -119,6 +148,19 @@ struct ResultsView: View {
     }
     
     private func loadSessions(forceRefresh: Bool = false) async {
+        // If a session was just saved, use the preloaded sessions immediately
+        // This prevents Supabase replication lag from hiding the new session
+        if appState.sessionJustSaved {
+            await MainActor.run {
+                self.sessions = appState.preloadedSessions
+                self.isLoading = false
+                // Reset the flag so future navigations can refresh normally
+                appState.sessionJustSaved = false
+            }
+            print("✅ Using preloaded sessions (session just saved)")
+            return
+        }
+        
         // Use preloaded sessions only on initial load, not on refresh
         if !forceRefresh && !appState.preloadedSessions.isEmpty {
             await MainActor.run {
@@ -132,6 +174,11 @@ struct ResultsView: View {
         // Fetch fresh data from Supabase
         await MainActor.run {
             isLoading = sessions.isEmpty // Only show loading if no sessions yet
+        }
+        
+        // Add small delay on manual refresh to allow Supabase sync
+        if forceRefresh {
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
         }
         
         do {
@@ -152,13 +199,34 @@ struct ResultsView: View {
     }
     
     private func deleteSession(_ session: InterviewSession) async {
+        await MainActor.run {
+            isDeleting = true
+        }
+        
         do {
-            try await supabase.deleteInterviewSession(id: session.id)
-            await MainActor.run {
-                sessions.removeAll { $0.id == session.id }
+            // Small delay if session was just saved to ensure Supabase has committed it
+            if appState.sessionJustSaved {
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s delay
             }
+            
+            try await supabase.deleteInterviewSession(id: session.id)
+            
+            await MainActor.run {
+                // Remove from local sessions array
+                sessions.removeAll { $0.id == session.id }
+                // CRITICAL: Also remove from preloadedSessions to prevent reappearing
+                appState.preloadedSessions.removeAll { $0.id == session.id }
+                isDeleting = false
+            }
+            
+            print("✅ Session deleted successfully: \(session.id)")
         } catch {
-            print("Failed to delete session: \(error)")
+            print("❌ Failed to delete session: \(error)")
+            await MainActor.run {
+                isDeleting = false
+                deleteError = "Failed to delete session. Please try again."
+                showDeleteError = true
+            }
         }
     }
 }

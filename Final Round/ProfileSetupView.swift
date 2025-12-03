@@ -329,15 +329,42 @@ struct PhotoStepView: View {
                 
                 // Photo Picker
                 VStack(spacing: 16) {
-                    ProfilePhotoPicker(
-                        selectedItem: $viewModel.selectedPhotoItem,
-                        image: viewModel.profileImage,
-                        initials: String(viewModel.fullName.prefix(1))
-                    )
+                    ZStack {
+                        ProfilePhotoPicker(
+                            selectedItem: $viewModel.selectedPhotoItem,
+                            image: viewModel.profileImage,
+                            initials: String(viewModel.fullName.prefix(1))
+                        )
+                        .disabled(viewModel.isLoadingPhoto)
+                        .opacity(viewModel.isLoadingPhoto ? 0.5 : 1.0)
+                        
+                        // Loading overlay for iCloud images
+                        if viewModel.isLoadingPhoto {
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                    .scaleEffect(1.5)
+                                    .tint(AppTheme.primary)
+                                Text("Loading from iCloud...")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(AppTheme.textSecondary)
+                            }
+                            .frame(width: 140, height: 140)
+                            .background(
+                                Circle()
+                                    .fill(AppTheme.cardBackground.opacity(0.9))
+                            )
+                        }
+                    }
                     
-                    Text(viewModel.profileImage == nil ? "Tap to add photo" : "Tap to change photo")
-                        .font(.system(size: 14))
-                        .foregroundStyle(AppTheme.textSecondary)
+                    if viewModel.isLoadingPhoto {
+                        Text("This may take a moment for iCloud photos...")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(AppTheme.textSecondary)
+                    } else {
+                        Text(viewModel.profileImage == nil ? "Tap to add photo" : "Tap to change photo")
+                            .font(.system(size: 14))
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
@@ -360,15 +387,21 @@ struct PhotoStepView: View {
                         viewModel.goToNextStep()
                     } label: {
                         if viewModel.isSaving {
-                            ProgressView()
-                                .tint(.white)
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .tint(.white)
+                                if !viewModel.saveProgress.isEmpty {
+                                    Text(viewModel.saveProgress)
+                                        .font(.system(size: 16, weight: .semibold))
+                                }
+                            }
                         } else {
                             Text("Complete Setup")
                         }
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .disabled(viewModel.isSaving || viewModel.profileImage == nil)
-                    .opacity(viewModel.profileImage == nil ? 0.5 : 1.0)
+                    .disabled(viewModel.isSaving || viewModel.isLoadingPhoto || viewModel.profileImage == nil)
+                    .opacity(viewModel.profileImage == nil || viewModel.isLoadingPhoto ? 0.5 : 1.0)
                     
                     // Skip for now - always available (this is the way to proceed without a photo)
                     Button {
@@ -378,7 +411,7 @@ struct PhotoStepView: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(AppTheme.textSecondary)
                     }
-                    .disabled(viewModel.isSaving)
+                    .disabled(viewModel.isSaving || viewModel.isLoadingPhoto)
                 }
             }
         }
@@ -388,6 +421,15 @@ struct PhotoStepView: View {
             }
         } message: {
             if let error = viewModel.saveError {
+                Text(error)
+            }
+        }
+        .alert("Photo Error", isPresented: .constant(viewModel.photoLoadError != nil)) {
+            Button("OK") {
+                viewModel.photoLoadError = nil
+            }
+        } message: {
+            if let error = viewModel.photoLoadError {
                 Text(error)
             }
         }
@@ -513,7 +555,7 @@ struct LocationStepView: View {
             .padding(.horizontal, 24)
         }
         .safeAreaInset(edge: .bottom) {
-            BottomActionBar {
+            BottomActionBar(showsSeparator: false) {
                 Button {
                     viewModel.goToNextStep()
                 } label: {
