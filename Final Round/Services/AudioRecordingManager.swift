@@ -144,12 +144,14 @@ final class AudioRecordingManager: ObservableObject {
         }
         
         // ARM-optimized recorder settings for Apple Silicon
+        // Reduced bitrate (64kbps) for faster caching during deferred analysis
+        // Speech transcription quality is maintained at this bitrate
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
             AVSampleRateKey: 44100.0,  // Standard sample rate - more compatible
             AVNumberOfChannelsKey: 1,
-            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
-            AVEncoderBitRateKey: 128000
+            AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue,
+            AVEncoderBitRateKey: 64000  // Reduced from 128kbps for faster storage
         ]
         
         do {

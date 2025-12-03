@@ -67,10 +67,53 @@ class ProfileSetupViewModel: ObservableObject {
     }
     
     enum ExperienceLevel: String, CaseIterable {
-        case entry = "Entry Level"
+        case beginner = "Beginner"
         case mid = "Mid Level"
         case senior = "Senior"
         case executive = "Executive"
+        
+        /// Returns the evaluation level (one level up for growth-oriented feedback)
+        /// - Beginner → Evaluate as Mid Level (lenient, encouraging)
+        /// - Mid Level → Evaluate as Senior (moderate growth focus)
+        /// - Senior/Executive → Evaluate at their level (full scrutiny)
+        var evaluationLevel: String {
+            switch self {
+            case .beginner: return "Mid Level"
+            case .mid: return "Senior"
+            case .senior: return "Senior"
+            case .executive: return "Executive"
+            }
+        }
+        
+        /// Description of the grading approach for this level
+        var gradingApproach: String {
+            switch self {
+            case .beginner:
+                return "Be encouraging and focus on foundational skills. Highlight growth potential while noting specific areas for improvement."
+            case .mid:
+                return "Provide balanced feedback with moderate expectations. Focus on professional development and industry best practices."
+            case .senior:
+                return "Apply standard professional expectations. Evaluate depth of knowledge and strategic thinking."
+            case .executive:
+                return "Apply rigorous evaluation standards. Assess leadership insights, strategic vision, and executive presence."
+            }
+        }
+        
+        /// Initialize from stored string value (handles legacy "Entry Level" values)
+        init?(storedValue: String) {
+            switch storedValue {
+            case "Beginner", "Entry Level":
+                self = .beginner
+            case "Mid Level":
+                self = .mid
+            case "Senior":
+                self = .senior
+            case "Executive":
+                self = .executive
+            default:
+                return nil
+            }
+        }
     }
     
     // MARK: - Computed Properties

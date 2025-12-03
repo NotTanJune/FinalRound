@@ -276,9 +276,22 @@ struct RateLimitedRequest {
                 print("⚠️ Retry attempt \(attempt + 1)/\(maxRetries) for \(type.rawValue)")
                 #endif
                 
-                // If this is a rate limit error from the server, wait longer
-                if let urlError = error as? URLError, urlError.code == .timedOut {
-                    try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                // Handle network errors with appropriate delays
+                if let urlError = error as? URLError {
+                    switch urlError.code {
+                    case .timedOut:
+                        // Timeout - wait a bit before retry
+                        try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                    case .networkConnectionLost, .notConnectedToInternet, .dataNotAllowed:
+                        // Network issues - wait longer before retry
+                        try await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
+                    case .cannotConnectToHost, .cannotFindHost:
+                        // Server issues - wait even longer
+                        try await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+                    default:
+                        // Other errors - standard delay
+                        try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                    }
                 }
             }
         }
