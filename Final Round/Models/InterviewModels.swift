@@ -151,13 +151,14 @@ struct InterviewSession: Identifiable, Codable {
     var endTime: Date?
     var userEmail: String?
     var enableAudioRecording: Bool
+    var experienceLevel: String // User's experience level for evaluation context
     
-    init(id: UUID = UUID(), role: String, difficulty: Difficulty, categories: [QuestionCategory], duration: Int, questions: [InterviewQuestion], answeredCount: Int = 0, skippedCount: Int = 0, startTime: Date? = nil, endTime: Date? = nil, userEmail: String? = nil, enableAudioRecording: Bool = true) {
+    init(id: UUID = UUID(), role: String, difficulty: Difficulty, categories: [QuestionCategory], duration: Int = 0, questions: [InterviewQuestion], answeredCount: Int = 0, skippedCount: Int = 0, startTime: Date? = nil, endTime: Date? = nil, userEmail: String? = nil, enableAudioRecording: Bool = true, experienceLevel: String = "Mid Level") {
         self.id = id
         self.role = role
         self.difficulty = difficulty
         self.categories = categories
-        self.duration = duration
+        self.duration = duration // Legacy field, actual duration computed from startTime/endTime
         self.questions = questions
         self.answeredCount = answeredCount
         self.skippedCount = skippedCount
@@ -165,6 +166,7 @@ struct InterviewSession: Identifiable, Codable {
         self.endTime = endTime
         self.userEmail = userEmail
         self.enableAudioRecording = enableAudioRecording
+        self.experienceLevel = experienceLevel
     }
     
     var totalQuestions: Int {

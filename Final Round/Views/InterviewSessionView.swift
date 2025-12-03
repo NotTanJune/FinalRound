@@ -16,6 +16,7 @@ struct InterviewSessionView: View {
     @StateObject private var audioManager = AudioRecordingManager()
     @StateObject private var supabase = SupabaseService.shared
     @StateObject private var eyeContactAnalyzer = EyeContactAnalyzer()
+    @StateObject private var analysisManager = DeferredAnalysisManager()
     @State private var isSavingSession = false
     @State private var isEndingSession = false
     @State private var answeredQuestions: Set<Int> = []
@@ -24,10 +25,9 @@ struct InterviewSessionView: View {
     @State private var isProcessingAnswer = false
     @State private var questionStartTime: Date?
     @State private var pausedTimeDisplay: String?
+    @State private var pendingAnswers: [PendingAnswer] = []
     
     private let accent = AppTheme.accent
-    private let groqService = GroqService.shared
-    private let toneAnalyzer = ToneConfidenceAnalyzer()
     
     init(session: InterviewSession) {
         _session = State(initialValue: session)
@@ -152,17 +152,20 @@ struct InterviewSessionView: View {
                         if hasStarted {
                             if let question = currentQuestion {
                                 VStack(spacing: 12) {
-                                    Text(question.text)
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundStyle(AppTheme.textPrimary)
-                                        .multilineTextAlignment(.center)
-                                        .lineLimit(3)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 12)
-                                        .frame(maxWidth: .infinity)
-                                        .background(AppTheme.cardBackground.opacity(0.92))
-                                        .cornerRadius(16)
-                                        .padding(.horizontal, 24)
+                                    ScrollView(.vertical, showsIndicators: false) {
+                                        Text(question.text)
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundStyle(AppTheme.textPrimary)
+                                            .multilineTextAlignment(.center)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 12)
+                                    }
+                                    .frame(maxHeight: 100) // Allow scrolling for long questions
+                                    .frame(maxWidth: .infinity)
+                                    .background(AppTheme.cardBackground.opacity(0.92))
+                                    .cornerRadius(16)
+                                    .padding(.horizontal, 24)
                                 }
                                 .padding(.bottom, 20)
                             }
@@ -262,7 +265,8 @@ struct InterviewSessionView: View {
         .onDisappear { cameraManager.stop() }
         .sheet(isPresented: $showingSummary) {
             SessionSummaryView(
-                session: session,
+                session: $session,
+                analysisManager: analysisManager,
                 answeredQuestions: session.answeredCount,
                 startTime: sessionStartTime ?? Date(),
                 endTime: sessionEndTime ?? Date(),
@@ -285,6 +289,13 @@ struct InterviewSessionView: View {
         sessionStartTime = Date()
         session.startTime = Date()
         questionStartTime = Date()
+        
+        // Configure the analysis manager with role and session update callback
+        analysisManager.setRole(session.role)
+        analysisManager.setSessionUpdateCallback { [self] questionIndex, answer in
+            // Update the session when background analysis completes
+            session.questions[questionIndex].answer = answer
+        }
         
         // Start eye contact tracking
         eyeContactAnalyzer.startTracking(with: cameraManager.captureSession)
@@ -316,13 +327,12 @@ struct ControlCircleButton: View {
     private func answerQuestion() {
         guard !isTransitioning, let question = currentQuestion else { return }
         isTransitioning = true
-        isProcessingAnswer = true
         
         // Capture time spent synchronously (lightweight)
         let timeSpent = questionStartTime.map { Date().timeIntervalSince($0) }
         
         // IMPORTANT: Stop audio and eye tracking on main thread - AVAudioRecorder requires this
-        // Moving to background Task.detached breaks the recorder (files end up empty)
+        // These are fast, synchronous operations
         let eyeContactMetrics = eyeContactAnalyzer.stopTracking()
         
         // Stop audio recording if enabled - MUST be on main thread
@@ -336,143 +346,48 @@ struct ControlCircleButton: View {
             recordingURL = nil
         }
         
-        // Process the recording asynchronously
-        Task(priority: .userInitiated) {
-            do {
-                let transcription: String
-                let evaluation: AnswerEvaluation
-                var toneAnalysis: ToneAnalysis?
-                var confidenceScore: Double?
+        // IMMEDIATE BACKGROUND PROCESSING: Submit for analysis right away
+        // Processing happens in background while user continues to next question
+        let pending = PendingAnswer(
+            questionIndex: currentQuestionIndex,
+            audioURL: recordingURL,
+            eyeContactMetrics: eyeContactMetrics,
+            timeSpent: timeSpent,
+            questionText: question.text,
+            questionId: question.id,
+            experienceLevel: session.experienceLevel
+        )
+        pendingAnswers.append(pending)
+        
+        // Submit for immediate background processing (non-blocking)
+        analysisManager.submitForBackgroundProcessing(pending)
+        
+        print("📥 Submitted answer \(currentQuestionIndex + 1) for background analysis (audio: \(recordingURL != nil ? "yes" : "no"))")
+        
+        // Mark question as answered (actual analysis happens after session ends)
+        answeredQuestions.insert(currentQuestionIndex)
+        
+        // IMMEDIATELY move to next question - no async processing!
+        if currentQuestionIndex < session.questions.count - 1 {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                currentQuestionIndex += 1
+            }
+            
+            // Start recording and tracking for next question after brief animation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                questionStartTime = Date()
+                eyeContactAnalyzer.startTracking(with: cameraManager.captureSession)
                 
-                if let recordingURL = recordingURL {
-                    // Transcribe audio
-                    print("🎤 Transcribing audio...")
-                    transcription = try await groqService.transcribeAudio(audioURL: recordingURL)
-                    print("✅ Transcription: \(transcription)")
-                    
-                    // Check if audio was silent
-                    if transcription == "[No speech detected]" {
-                        // Skip analysis for silent audio
-                        evaluation = AnswerEvaluation(
-                            score: 0,
-                            strengths: [],
-                            improvements: ["No speech was detected in your answer. Please speak clearly into the microphone."],
-                            feedback: "No speech was detected. Make sure your microphone is working and speak clearly during your answer."
-                        )
-                    } else {
-                        // Analyze tone and confidence
-                        print("🎵 Analyzing tone...")
-                        toneAnalysis = try await toneAnalyzer.analyzeAudioTone(
-                            audioURL: recordingURL,
-                            transcription: transcription
-                        )
-                        
-                        if let tone = toneAnalysis, let eyeContact = eyeContactMetrics {
-                            confidenceScore = toneAnalyzer.calculateConfidenceScore(
-                                toneAnalysis: tone,
-                                eyeContactPercentage: eyeContact.percentage
-                            )
-                            print("✅ Confidence score: \(String(format: "%.1f", confidenceScore ?? 0))/10")
-                        }
-                        
-                        // Evaluate answer
-                        print("🤔 Evaluating answer...")
-                        evaluation = try await groqService.evaluateAnswer(
-                            question: question.text,
-                            answer: transcription,
-                            role: session.role
-                        )
-                        print("✅ Evaluation score: \(evaluation.score)")
-                    }
-                } else if session.enableAudioRecording {
-                    // Audio recording was enabled but failed (e.g., screen recording interference)
-                    transcription = "Audio recording unavailable"
-                    evaluation = AnswerEvaluation(
-                        score: 0,
-                        strengths: [],
-                        improvements: ["Audio recording was interrupted. This can happen during screen recording."],
-                        feedback: "Audio recording was unavailable for this answer. Screen recording may interfere with the microphone."
-                    )
-                    print("⚠️ Audio recording was enabled but no recording was captured")
-                } else {
-                    // No recording, audio was disabled
-                    transcription = "No audio recorded"
-                    evaluation = AnswerEvaluation(
-                        score: 0,
-                        strengths: [],
-                        improvements: [],
-                        feedback: "Audio recording was disabled for this session."
-                    )
+                if session.enableAudioRecording, let nextQuestion = currentQuestion {
+                    currentRecordingURL = audioManager.startRecording(for: nextQuestion.id)
                 }
-                
-                // Save the answer with analytics
-                let answer = QuestionAnswer(
-                    transcription: transcription,
-                    audioURL: recordingURL?.lastPathComponent,
-                    videoURL: nil,
-                    evaluation: evaluation,
-                    eyeContactMetrics: eyeContactMetrics,
-                    confidenceScore: confidenceScore,
-                    toneAnalysis: toneAnalysis,
-                    timeSpent: timeSpent
-                )
-                
-                await MainActor.run {
-                    session.questions[currentQuestionIndex].answer = answer
-                    answeredQuestions.insert(currentQuestionIndex)
-                    
-                    // Move to next question or end
-                    if currentQuestionIndex < session.questions.count - 1 {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            currentQuestionIndex += 1
-                        }
-                        
-                        // Start recording and tracking for next question
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            questionStartTime = Date()
-                            eyeContactAnalyzer.startTracking(with: cameraManager.captureSession)
-                            
-                            if session.enableAudioRecording, let nextQuestion = currentQuestion {
-                                currentRecordingURL = audioManager.startRecording(for: nextQuestion.id)
-                            }
-                            isTransitioning = false
-                            isProcessingAnswer = false
-                        }
-                    } else {
-                        // Last question answered, end session
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            isTransitioning = false
-                            isProcessingAnswer = false
-                            endSession()
-                        }
-                    }
-                }
-            } catch {
-                print("❌ Error processing answer: \(error.localizedDescription)")
-                await MainActor.run {
-                    // Still mark as answered but without evaluation
-                    answeredQuestions.insert(currentQuestionIndex)
-                    
-                    if currentQuestionIndex < session.questions.count - 1 {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            currentQuestionIndex += 1
-                        }
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            if session.enableAudioRecording, let nextQuestion = currentQuestion {
-                                currentRecordingURL = audioManager.startRecording(for: nextQuestion.id)
-                            }
-                            isTransitioning = false
-                            isProcessingAnswer = false
-                        }
-                    } else {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            isTransitioning = false
-                            isProcessingAnswer = false
-                            endSession()
-                        }
-                    }
-                }
+                isTransitioning = false
+            }
+        } else {
+            // Last question answered, end session
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                isTransitioning = false
+                endSession()
             }
         }
     }
@@ -491,8 +406,9 @@ struct ControlCircleButton: View {
             }
         }
         
-        // Mark as skipped
+        // Mark as skipped (both locally and in the analysis manager)
         skippedQuestions.insert(currentQuestionIndex)
+        analysisManager.markAsSkipped(currentQuestionIndex)
         
         if currentQuestionIndex < session.questions.count - 1 {
             withAnimation(.easeInOut(duration: 0.3)) {
@@ -552,7 +468,7 @@ struct ControlCircleButton: View {
         // Stop eye contact tracking
         _ = eyeContactAnalyzer.stopTracking()
         
-        // Stop any active recording
+        // Stop any active recording (discard if session ended mid-question)
         if audioManager.isRecording {
             if let recordingURL = audioManager.stopRecording() {
                 audioManager.deleteRecording(at: recordingURL)
@@ -572,58 +488,22 @@ struct ControlCircleButton: View {
             .subtracting(skippedQuestions)
         session.skippedCount += remainingQuestions.count
         
-        print("📊 Session Stats: Answered: \(session.answeredCount), Skipped: \(session.skippedCount), Total: \(session.totalQuestions)")
+        // Mark remaining questions as skipped in the analysis manager
+        for questionIndex in remainingQuestions {
+            analysisManager.markAsSkipped(questionIndex)
+        }
         
-        // Save session to Supabase with retry logic
-        isSavingSession = true
-        Task {
-            var saveSucceeded = false
-            
-            // Warm up connection before save (connection may be stale after interview)
-            await SupabaseService.shared.aggressiveWarmUp()
-            
-            // Retry up to 3 times
-            for attempt in 1...3 {
-                do {
-                    try await supabase.saveInterviewSession(session)
-                    print("✅ Session saved to Supabase (attempt \(attempt))")
-                    saveSucceeded = true
-                    
-                    // Add the new session to the preloaded cache so it shows up immediately in Preps
-                    await MainActor.run {
-                        // Insert at the beginning (most recent first)
-                        appState.preloadedSessions.insert(session, at: 0)
-                        // Signal that a session was just saved (prevents Supabase refetch race)
-                        appState.sessionJustSaved = true
-                    }
-                    break
-                } catch {
-                    print("❌ Failed to save session (attempt \(attempt)): \(error.localizedDescription)")
-                    
-                    if attempt < 3 {
-                        // Short delay before retry
-                        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
-                    }
-                }
-            }
-            
-            if !saveSucceeded {
-                print("❌ Session save failed after 3 attempts - session stored locally only")
-                // Still add to preloaded so user sees it, even if not saved to cloud
-                await MainActor.run {
-                    appState.preloadedSessions.insert(session, at: 0)
-                    appState.sessionJustSaved = true
-                }
-            }
-            
-            await MainActor.run {
-                isSavingSession = false
-                // Small delay to prevent rate limiting
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    showingSummary = true
-                    isEndingSession = false
-                }
-            }
+        print("📊 Session Stats: Answered: \(session.answeredCount), Skipped: \(session.skippedCount), Total: \(session.totalQuestions)")
+        print("📥 Background analysis status: \(analysisManager.completedCount)/\(analysisManager.totalCount) complete")
+        
+        // Analysis is already happening in the background!
+        // The summary view will show progress for any remaining items
+        // Note: We save to Supabase AFTER analysis completes (in SessionSummaryView)
+        isSavingSession = false
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            showingSummary = true
+            isEndingSession = false
         }
     }
     

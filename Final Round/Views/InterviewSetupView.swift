@@ -7,12 +7,12 @@ struct InterviewSetupView: View {
     // Optional job for pre-population
     let job: JobPost?
     
-    @State private var selectedCategories: Set<QuestionCategory> = [.behavioral]
-    @State private var difficulty: Difficulty = .medium
-    @State private var duration: Double = 15 // minutes
+    @State private var selectedCategories: Set<QuestionCategory> = []
+    @State private var difficulty: Difficulty? = nil
     @State private var numberOfQuestions: Double = 5
     @State private var roleTitle: String = ""
     @State private var enableAudioRecording: Bool = true
+    @State private var selectedExperienceLevel: ProfileSetupViewModel.ExperienceLevel? = nil
     @State private var showingSession = false
     @State private var interviewSession: InterviewSession?
     @FocusState private var isRoleFocused: Bool
@@ -24,6 +24,14 @@ struct InterviewSetupView: View {
     @State private var showingError = false
     
     private let gridColumns = [GridItem(.flexible()), GridItem(.flexible())]
+    
+    /// Check if all required fields are filled to start the interview
+    private var canStartInterview: Bool {
+        !roleTitle.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !selectedCategories.isEmpty &&
+        difficulty != nil &&
+        selectedExperienceLevel != nil
+    }
     
     // Default initializer without job
     init() {
@@ -44,9 +52,9 @@ struct InterviewSetupView: View {
                         categoriesSection
                         difficultySection
                             .id("difficulty")
+                        experienceLevelSection
                         audioRecordingSection
                         questionsSection
-                        durationSection
                     }
                     .padding(.vertical, 24)
                     .padding(.horizontal, 20)
@@ -132,8 +140,8 @@ struct InterviewSetupView: View {
                         }
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .disabled(selectedCategories.isEmpty || roleTitle.trimmingCharacters(in: .whitespaces).isEmpty || isGeneratingQuestions)
-                    .opacity(selectedCategories.isEmpty || roleTitle.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
+                    .disabled(!canStartInterview || isGeneratingQuestions)
+                    .opacity(canStartInterview ? 1 : 0.5)
                     .animation(.easeInOut(duration: 0.2), value: roleTitle.isEmpty)
                     .shadow(color: AppTheme.primary.opacity(0.3), radius: 12, x: 0, y: 6)
                     .padding(.horizontal, 24)
@@ -183,6 +191,7 @@ struct InterviewSetupView: View {
                 Text(errorMessage ?? "An unknown error occurred")
             }
             .onAppear {
+                // Only pre-populate if coming from a job
                 prepopulateFromJob()
             }
         }
@@ -210,20 +219,44 @@ struct InterviewSetupView: View {
         // Always include behavioral for any role
         suggestedCategories.insert(.behavioral)
         
-        // Add situational for senior/lead roles
-        let seniorKeywords = ["senior", "lead", "manager", "director", "principal", "head", "chief", "vp"]
-        if allKeywords.contains(where: { keyword in seniorKeywords.contains(where: { keyword.contains($0) }) }) {
+        // Infer experience level from job title keywords
+        let executiveKeywords = ["chief", "cto", "ceo", "cfo", "coo", "vp", "vice president", "executive", "president"]
+        let seniorKeywords = ["senior", "lead", "manager", "director", "principal", "head", "staff", "architect"]
+        let midKeywords = ["mid", "intermediate", "experienced"]
+        let juniorKeywords = ["junior", "entry", "intern", "associate", "graduate", "trainee", "fresher"]
+        
+        var inferredLevel: ProfileSetupViewModel.ExperienceLevel? = nil
+        
+        if allKeywords.contains(where: { keyword in executiveKeywords.contains(where: { keyword.contains($0) }) }) {
+            inferredLevel = .executive
             suggestedCategories.insert(.situational)
+        } else if allKeywords.contains(where: { keyword in seniorKeywords.contains(where: { keyword.contains($0) }) }) {
+            inferredLevel = .senior
+            suggestedCategories.insert(.situational)
+        } else if allKeywords.contains(where: { keyword in juniorKeywords.contains(where: { keyword.contains($0) }) }) {
+            inferredLevel = .beginner
+        } else if allKeywords.contains(where: { keyword in midKeywords.contains(where: { keyword.contains($0) }) }) {
+            inferredLevel = .mid
         }
         
-        // If we have categories, use them; otherwise use defaults
+        // Set experience level: use inferred level, fall back to user profile, then default to mid
+        if let level = inferredLevel {
+            selectedExperienceLevel = level
+        } else if let profileExperience = appState.preloadedProfile?.yearsOfExperience,
+                  let profileLevel = ProfileSetupViewModel.ExperienceLevel(storedValue: profileExperience) {
+            selectedExperienceLevel = profileLevel
+        } else {
+            selectedExperienceLevel = .mid
+        }
+        
+        // If we have categories, use them
         if !suggestedCategories.isEmpty {
             selectedCategories = suggestedCategories
         }
         
         // Set reasonable defaults for job-based interviews
+        difficulty = .medium
         numberOfQuestions = 8
-        duration = 15
     }
     
     private var roleSection: some View {
@@ -286,6 +319,29 @@ struct InterviewSetupView: View {
         .appCard()
     }
     
+    private var experienceLevelSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                sectionTitle("Your Experience Level")
+                Text("Grading adjusts based on your level")
+                    .font(.system(size: 13))
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+            
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                ForEach(ProfileSetupViewModel.ExperienceLevel.allCases, id: \.self) { level in
+                    ExperienceLevelButton(
+                        level: level,
+                        isSelected: selectedExperienceLevel == level
+                    ) {
+                        selectedExperienceLevel = level
+                    }
+                }
+            }
+        }
+        .appCard()
+    }
+    
     private var audioRecordingSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             sectionTitle("Audio Recording")
@@ -329,15 +385,6 @@ struct InterviewSetupView: View {
         .appCard()
     }
     
-    private var durationSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            statHeader(title: "Session Duration", value: String(format: "%.0f min", duration))
-            Slider(value: $duration, in: 5...20, step: 5)
-                .tint(AppTheme.accent)
-        }
-        .appCard()
-    }
-    
     private func sectionTitle(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 17, weight: .semibold))
@@ -354,6 +401,12 @@ struct InterviewSetupView: View {
     }
     
     private func startInterview() {
+        // Guard to ensure required fields are set (should always pass due to button being disabled)
+        guard let selectedDifficulty = difficulty,
+              let experienceLevel = selectedExperienceLevel else {
+            return
+        }
+        
         isRoleFocused = false
         let trimmedRole = roleTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         roleTitle = trimmedRole
@@ -366,7 +419,7 @@ struct InterviewSetupView: View {
                 let questions = try await GroqService.shared.generateQuestions(
                     role: trimmedRole,
                     categories: Array(selectedCategories),
-                    difficulty: difficulty,
+                    difficulty: selectedDifficulty,
                     count: Int(numberOfQuestions)
                 )
                 
@@ -384,11 +437,11 @@ struct InterviewSetupView: View {
                 await MainActor.run {
                     interviewSession = InterviewSession(
                         role: trimmedRole,
-                        difficulty: difficulty,
+                        difficulty: selectedDifficulty,
                         categories: Array(selectedCategories),
-                        duration: Int(duration),
                         questions: questions,
-                        enableAudioRecording: enableAudioRecording
+                        enableAudioRecording: enableAudioRecording,
+                        experienceLevel: experienceLevel.rawValue
                     )
                     
                     isGeneratingQuestions = false
@@ -469,6 +522,44 @@ struct DifficultyButton: View {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .stroke(isSelected ? AppTheme.accent.opacity(0.01) : AppTheme.separator, lineWidth: 1)
                 )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct ExperienceLevelButton: View {
+    let level: ProfileSetupViewModel.ExperienceLevel
+    let isSelected: Bool
+    let action: () -> Void
+    
+    private var iconName: String {
+        switch level {
+        case .beginner: return "leaf.fill"
+        case .mid: return "chart.bar.fill"
+        case .senior: return "star.fill"
+        case .executive: return "crown.fill"
+        }
+    }
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: iconName)
+                    .font(.system(size: 14, weight: .semibold))
+                Text(level.rawValue)
+                    .font(.system(size: 14, weight: .semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .foregroundStyle(isSelected ? .white : AppTheme.accent)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(isSelected ? AppTheme.accent : AppTheme.controlBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(isSelected ? AppTheme.accent.opacity(0.01) : AppTheme.separator, lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
     }
