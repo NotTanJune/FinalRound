@@ -252,7 +252,7 @@ struct RecommendedJobsView: View {
                 category: cats.first ?? "leadership",
                 logoName: iconForCategory(cats.first ?? "leadership")
             ),
-            JobPost(
+                JobPost(
                 role: "\(role)",
                 company: "Innovation Corp",
                 location: location,
@@ -262,8 +262,8 @@ struct RecommendedJobsView: View {
                 responsibilities: ["Execute strategy", "Collaborate with stakeholders", "Drive growth"],
                 category: cats.first ?? "general",
                 logoName: iconForCategory(cats.first ?? "general")
-            ),
-            JobPost(
+                ),
+                JobPost(
                 role: "Director of \(role.replacingOccurrences(of: "Vice ", with: "").replacingOccurrences(of: "VP ", with: ""))",
                 company: "Enterprise Solutions",
                 location: location,
@@ -283,11 +283,11 @@ struct RecommendedJobsView: View {
                 company: ["TechStart", "GrowthCo", "NextGen Inc"][index % 3],
                 location: location,
                 salary: "\(currencySymbol)100k-\(currencySymbol)140k",
-                tags: Array(skills.prefix(2)),
+                    tags: Array(skills.prefix(2)),
                 description: "Opportunity for \(role) with \(category) expertise.",
                 responsibilities: ["Apply \(category) expertise", "Collaborate across teams", "Drive innovation"],
-                category: category,
-                logoName: iconForCategory(category)
+                    category: category,
+                    logoName: iconForCategory(category)
             ))
         }
         

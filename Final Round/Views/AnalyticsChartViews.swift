@@ -12,48 +12,43 @@ struct TimeSpentChart: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(AppTheme.textPrimary)
             
-            if #available(iOS 16.0, *) {
-                Chart {
-                    ForEach(Array(questions.enumerated()), id: \.offset) { index, question in
-                        if let timeSpent = question.answer?.timeSpent {
-                            BarMark(
-                                x: .value("Question", "Q\(index + 1)"),
-                                y: .value("Time", timeSpent)
-                            )
-                            .foregroundStyle(barColor(for: timeSpent))
-                            .annotation(position: .top) {
-                                Text("\(Int(timeSpent))s")
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(AppTheme.textSecondary)
-                            }
+            Chart {
+                ForEach(Array(questions.enumerated()), id: \.offset) { index, question in
+                    if let timeSpent = question.answer?.timeSpent {
+                        BarMark(
+                            x: .value("Question", "Q\(index + 1)"),
+                            y: .value("Time", timeSpent)
+                        )
+                        .foregroundStyle(barColor(for: timeSpent))
+                        .annotation(position: .top) {
+                            Text("\(Int(timeSpent))s")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(AppTheme.textSecondary)
                         }
                     }
                 }
-                .frame(height: 200)
-                .chartYAxis {
-                    AxisMarks(position: .leading) { value in
-                        AxisGridLine()
-                        AxisValueLabel {
-                            if let seconds = value.as(Double.self) {
-                                Text("\(Int(seconds))s")
-                                    .font(.system(size: 10))
-                            }
+            }
+            .frame(height: 200)
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let seconds = value.as(Double.self) {
+                            Text("\(Int(seconds))s")
+                                .font(.system(size: 10))
                         }
                     }
                 }
-                .chartXAxis {
-                    AxisMarks { value in
-                        AxisValueLabel {
-                            if let label = value.as(String.self) {
-                                Text(label)
-                                    .font(.system(size: 10))
-                            }
+            }
+            .chartXAxis {
+                AxisMarks { value in
+                    AxisValueLabel {
+                        if let label = value.as(String.self) {
+                            Text(label)
+                                .font(.system(size: 10))
                         }
                     }
                 }
-            } else {
-                // Fallback for iOS 15
-                LegacyBarChart(data: questions.compactMap { $0.answer?.timeSpent })
             }
         }
         .padding(16)
@@ -81,73 +76,69 @@ struct EyeContactChart: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(AppTheme.textPrimary)
             
-            if #available(iOS 16.0, *) {
-                Chart {
-                    ForEach(Array(questions.enumerated()), id: \.offset) { index, question in
-                        if let eyeContact = question.answer?.eyeContactMetrics {
-                            LineMark(
-                                x: .value("Question", index + 1),
-                                y: .value("Eye Contact", eyeContact.percentage)
+            Chart {
+                ForEach(Array(questions.enumerated()), id: \.offset) { index, question in
+                    if let eyeContact = question.answer?.eyeContactMetrics {
+                        LineMark(
+                            x: .value("Question", index + 1),
+                            y: .value("Eye Contact", eyeContact.percentage)
+                        )
+                        .foregroundStyle(AppTheme.primary)
+                        .interpolationMethod(.catmullRom)
+                        
+                        AreaMark(
+                            x: .value("Question", index + 1),
+                            y: .value("Eye Contact", eyeContact.percentage)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [AppTheme.primary.opacity(0.3), AppTheme.primary.opacity(0.05)],
+                                startPoint: .top,
+                                endPoint: .bottom
                             )
-                            .foregroundStyle(AppTheme.primary)
-                            .interpolationMethod(.catmullRom)
-                            
-                            AreaMark(
-                                x: .value("Question", index + 1),
-                                y: .value("Eye Contact", eyeContact.percentage)
-                            )
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [AppTheme.primary.opacity(0.3), AppTheme.primary.opacity(0.05)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .interpolationMethod(.catmullRom)
-                            
-                            PointMark(
-                                x: .value("Question", index + 1),
-                                y: .value("Eye Contact", eyeContact.percentage)
-                            )
-                            .foregroundStyle(AppTheme.primary)
-                        }
+                        )
+                        .interpolationMethod(.catmullRom)
+                        
+                        PointMark(
+                            x: .value("Question", index + 1),
+                            y: .value("Eye Contact", eyeContact.percentage)
+                        )
+                        .foregroundStyle(AppTheme.primary)
                     }
-                    
-                    // Reference line at 60%
-                    RuleMark(y: .value("Target", 60))
-                        .foregroundStyle(Color.gray.opacity(0.5))
-                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 5]))
-                        .annotation(position: .trailing, alignment: .leading) {
-                            Text("Target")
-                                .font(.system(size: 9))
-                                .foregroundStyle(Color.gray)
-                        }
                 }
-                .frame(height: 200)
-                .chartYScale(domain: 0...100)
-                .chartYAxis {
-                    AxisMarks(position: .leading, values: [0, 25, 50, 75, 100]) { value in
-                        AxisGridLine()
-                        AxisValueLabel {
-                            if let percent = value.as(Double.self) {
-                                Text("\(Int(percent))%")
-                                    .font(.system(size: 10))
-                            }
+                
+                // Reference line at 60%
+                RuleMark(y: .value("Target", 60))
+                    .foregroundStyle(Color.gray.opacity(0.5))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 5]))
+                    .annotation(position: .trailing, alignment: .leading) {
+                        Text("Target")
+                            .font(.system(size: 9))
+                            .foregroundStyle(Color.gray)
+                    }
+            }
+            .frame(height: 200)
+            .chartYScale(domain: 0...100)
+            .chartYAxis {
+                AxisMarks(position: .leading, values: [0, 25, 50, 75, 100]) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let percent = value.as(Double.self) {
+                            Text("\(Int(percent))%")
+                                .font(.system(size: 10))
                         }
                     }
                 }
-                .chartXAxis {
-                    AxisMarks { value in
-                        AxisValueLabel {
-                            if let num = value.as(Int.self) {
-                                Text("Q\(num)")
-                                    .font(.system(size: 10))
-                            }
+            }
+            .chartXAxis {
+                AxisMarks { value in
+                    AxisValueLabel {
+                        if let num = value.as(Int.self) {
+                            Text("Q\(num)")
+                                .font(.system(size: 10))
                         }
                     }
                 }
-            } else {
-                LegacyLineChart(data: questions.compactMap { $0.answer?.eyeContactMetrics?.percentage })
             }
         }
         .padding(16)
@@ -167,71 +158,67 @@ struct ConfidenceScoreChart: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(AppTheme.textPrimary)
             
-            if #available(iOS 16.0, *) {
-                Chart {
-                    ForEach(Array(questions.enumerated()), id: \.offset) { index, question in
-                        if let confidence = question.answer?.confidenceScore {
-                            LineMark(
-                                x: .value("Question", index + 1),
-                                y: .value("Confidence", confidence)
+            Chart {
+                ForEach(Array(questions.enumerated()), id: \.offset) { index, question in
+                    if let confidence = question.answer?.confidenceScore {
+                        LineMark(
+                            x: .value("Question", index + 1),
+                            y: .value("Confidence", confidence)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [scoreColor(for: confidence), scoreColor(for: confidence).opacity(0.7)],
+                                startPoint: .leading,
+                                endPoint: .trailing
                             )
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [scoreColor(for: confidence), scoreColor(for: confidence).opacity(0.7)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
+                        )
+                        .lineStyle(StrokeStyle(lineWidth: 3))
+                        .interpolationMethod(.catmullRom)
+                        
+                        AreaMark(
+                            x: .value("Question", index + 1),
+                            y: .value("Confidence", confidence)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [scoreColor(for: confidence).opacity(0.3), scoreColor(for: confidence).opacity(0.05)],
+                                startPoint: .top,
+                                endPoint: .bottom
                             )
-                            .lineStyle(StrokeStyle(lineWidth: 3))
-                            .interpolationMethod(.catmullRom)
-                            
-                            AreaMark(
-                                x: .value("Question", index + 1),
-                                y: .value("Confidence", confidence)
-                            )
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [scoreColor(for: confidence).opacity(0.3), scoreColor(for: confidence).opacity(0.05)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .interpolationMethod(.catmullRom)
-                            
-                            PointMark(
-                                x: .value("Question", index + 1),
-                                y: .value("Confidence", confidence)
-                            )
-                            .foregroundStyle(scoreColor(for: confidence))
-                            .symbolSize(60)
+                        )
+                        .interpolationMethod(.catmullRom)
+                        
+                        PointMark(
+                            x: .value("Question", index + 1),
+                            y: .value("Confidence", confidence)
+                        )
+                        .foregroundStyle(scoreColor(for: confidence))
+                        .symbolSize(60)
+                    }
+                }
+            }
+            .frame(height: 200)
+            .chartYScale(domain: 0...10)
+            .chartYAxis {
+                AxisMarks(position: .leading, values: [0, 2.5, 5, 7.5, 10]) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let score = value.as(Double.self) {
+                            Text(String(format: "%.1f", score))
+                                .font(.system(size: 10))
                         }
                     }
                 }
-                .frame(height: 200)
-                .chartYScale(domain: 0...10)
-                .chartYAxis {
-                    AxisMarks(position: .leading, values: [0, 2.5, 5, 7.5, 10]) { value in
-                        AxisGridLine()
-                        AxisValueLabel {
-                            if let score = value.as(Double.self) {
-                                Text(String(format: "%.1f", score))
-                                    .font(.system(size: 10))
-                            }
+            }
+            .chartXAxis {
+                AxisMarks { value in
+                    AxisValueLabel {
+                        if let num = value.as(Int.self) {
+                            Text("Q\(num)")
+                                .font(.system(size: 10))
                         }
                     }
                 }
-                .chartXAxis {
-                    AxisMarks { value in
-                        AxisValueLabel {
-                            if let num = value.as(Int.self) {
-                                Text("Q\(num)")
-                                    .font(.system(size: 10))
-                            }
-                        }
-                    }
-                }
-            } else {
-                LegacyLineChart(data: questions.compactMap { $0.answer?.confidenceScore })
             }
         }
         .padding(16)
@@ -374,51 +361,3 @@ struct AnalyticsOverviewCards: View {
         }
     }
 }
-
-// MARK: - Legacy Charts (iOS 15 Fallback)
-
-struct LegacyBarChart: View {
-    let data: [TimeInterval]
-    
-    var body: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            ForEach(Array(data.enumerated()), id: \.offset) { index, value in
-                VStack {
-                    Rectangle()
-                        .fill(AppTheme.primary)
-                        .frame(height: CGFloat(value) * 2)
-                    Text("Q\(index + 1)")
-                        .font(.system(size: 10))
-                }
-            }
-        }
-        .frame(height: 200)
-    }
-}
-
-struct LegacyLineChart: View {
-    let data: [Double]
-    
-    var body: some View {
-        GeometryReader { geometry in
-            Path { path in
-                guard !data.isEmpty else { return }
-                let width = geometry.size.width
-                let height = geometry.size.height
-                let stepX = width / CGFloat(data.count - 1)
-                let maxValue = data.max() ?? 100
-                
-                path.move(to: CGPoint(x: 0, y: height - (CGFloat(data[0]) / CGFloat(maxValue)) * height))
-                
-                for (index, value) in data.enumerated().dropFirst() {
-                    let x = CGFloat(index) * stepX
-                    let y = height - (CGFloat(value) / CGFloat(maxValue)) * height
-                    path.addLine(to: CGPoint(x: x, y: y))
-                }
-            }
-            .stroke(AppTheme.primary, lineWidth: 2)
-        }
-        .frame(height: 200)
-    }
-}
-

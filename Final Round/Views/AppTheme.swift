@@ -114,7 +114,7 @@ struct BottomActionBar<Content: View>: View {
     private let showsSeparator: Bool
     @ViewBuilder private let content: () -> Content
 
-    init(showsSeparator: Bool = true, @ViewBuilder content: @escaping () -> Content) {
+    init(showsSeparator: Bool = false, @ViewBuilder content: @escaping () -> Content) {
         self.showsSeparator = showsSeparator
         self.content = content
     }

@@ -218,6 +218,10 @@ class SupabaseService: ObservableObject {
         let userEmail = user.email ?? ""
         SecureLogger.authEvent("Account deletion initiated", category: .auth)
         
+        // Delete user's avatar from storage first
+        try? await deleteAvatar()
+        SecureLogger.authEvent("User avatar deleted", category: .auth)
+        
         // Retry logic for network connection issues (error -1005)
         // iOS sometimes drops idle connections, causing the first request to fail
         let maxRetries = 3
@@ -655,26 +659,81 @@ class SupabaseService: ObservableObject {
             updatedAt: Date()
         )
         
-        // Use upsert to handle both insert and update
+        // Retry logic for stale QUIC connection issues
+        // The SDK uses its own URLSession which can have stale connections
+        var lastError: Error?
+        for attempt in 1...3 {
+            do {
         try await client
             .from("profiles")
             .upsert(profile)
             .execute()
         
         SecureLogger.database("Upsert", table: "profiles", category: .database)
+                if attempt > 1 {
+                    SecureLogger.info("Profile saved on attempt \(attempt)", category: .database)
+                }
+                return
+            } catch {
+                lastError = error
+                let nsError = error as NSError
+                
+                // Check for network connection errors that benefit from retry
+                // -1005: connection lost, -1001: timeout, -1004: cannot connect
+                let isRetryableError = nsError.domain == NSURLErrorDomain &&
+                    [-1005, -1001, -1004].contains(nsError.code)
+                
+                if isRetryableError && attempt < 3 {
+                    SecureLogger.warning("Profile save attempt \(attempt) failed (code: \(nsError.code)), retrying...", category: .database)
+                    // Short delay - the failed request establishes a fresh connection
+                    try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
+                    continue
+                }
+                
+                throw error
+            }
+        }
+        
+        if let error = lastError {
+            throw error
+        }
     }
     
     func updateProfile(_ profile: UserProfile) async throws {
         // Security: Apply rate limiting
         try await RateLimiter.shared.waitAndConsume(.supabaseDB)
         
-        // Use upsert to update the profile
+        // Retry logic for stale QUIC connection issues
+        var lastError: Error?
+        for attempt in 1...3 {
+            do {
         try await client
             .from("profiles")
             .upsert(profile)
             .execute()
         
         SecureLogger.database("Update", table: "profiles", category: .database)
+                return
+            } catch {
+                lastError = error
+                let nsError = error as NSError
+                
+                let isRetryableError = nsError.domain == NSURLErrorDomain &&
+                    [-1005, -1001, -1004].contains(nsError.code)
+                
+                if isRetryableError && attempt < 3 {
+                    SecureLogger.warning("Profile update attempt \(attempt) failed, retrying...", category: .database)
+                    try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
+                    continue
+                }
+                
+                throw error
+            }
+        }
+        
+        if let error = lastError {
+            throw error
+        }
     }
     
     func fetchProfile() async throws -> UserProfile? {
@@ -685,6 +744,10 @@ class SupabaseService: ObservableObject {
         // Security: Apply rate limiting
         try await RateLimiter.shared.waitAndConsume(.supabaseDB)
         
+        // Retry logic for stale QUIC connection issues
+        var lastError: Error?
+        for attempt in 1...3 {
+            do {
         let response: [UserProfile] = try await client
             .from("profiles")
             .select()
@@ -694,8 +757,26 @@ class SupabaseService: ObservableObject {
         
         SecureLogger.database("Fetch profile", table: "profiles", category: .database)
         
-        if let profile = response.first {
-            return profile
+                return response.first
+            } catch {
+                lastError = error
+                let nsError = error as NSError
+                
+                let isRetryableError = nsError.domain == NSURLErrorDomain &&
+                    [-1005, -1001, -1004].contains(nsError.code)
+                
+                if isRetryableError && attempt < 3 {
+                    SecureLogger.warning("Profile fetch attempt \(attempt) failed, retrying...", category: .database)
+                    try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
+                    continue
+                }
+                
+                throw error
+            }
+        }
+        
+        if let error = lastError {
+            throw error
         }
         
         return nil
@@ -706,37 +787,329 @@ class SupabaseService: ObservableObject {
             throw SupabaseError.userNotFound
         }
         
-        // Compress and convert image to JPEG
-        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+        // Resize image to max 512x512 to reduce upload size significantly
+        let resizedImage = resizeImage(image, maxDimension: 512)
+        
+        // Compress with more aggressive quality for faster upload
+        guard let imageData = resizedImage.jpegData(compressionQuality: 0.5) else {
             throw SupabaseError.imageCompressionFailed
         }
         
-        // Security: Validate image size (max 5MB)
-        guard imageData.count <= 5 * 1024 * 1024 else {
-            throw SupabaseError.custom("Image is too large. Please select a smaller image.")
+        // If still too large, compress more aggressively
+        var finalData = imageData
+        if imageData.count > 500_000 { // 500KB
+            if let moreCompressed = resizedImage.jpegData(compressionQuality: 0.3) {
+                finalData = moreCompressed
+            }
         }
         
-        // Security: Apply rate limiting
-        try await RateLimiter.shared.waitAndConsume(.supabaseDB)
+        // Security: Validate image size (max 2MB for avatars)
+        guard finalData.count <= 2 * 1024 * 1024 else {
+            throw SupabaseError.custom("Image is too large. Please select a smaller image.")
+        }
         
         let fileName = "\(userId.uuidString).jpg"
         let filePath = "avatars/\(fileName)"
         
-        SecureLogger.debug("Uploading avatar", category: .database)
+        SecureLogger.debug("Uploading avatar (\(finalData.count / 1024)KB)", category: .database)
         
-        // Upload to Supabase Storage - using Data directly instead of deprecated File
-        try await client.storage
-            .from("avatars")
-            .upload(path: filePath, file: imageData, options: FileOptions(upsert: true))
+        // Security: Apply rate limiting
+        try await RateLimiter.shared.waitAndConsume(.supabaseDB)
         
-        // Get public URL
-        let publicURL = try client.storage
-            .from("avatars")
-            .getPublicURL(path: filePath)
+        // Use direct upload which bypasses the Supabase SDK's URLSession
+        // This avoids HTTP/3 QUIC connection issues that cause timeouts
+        // after long operations like iCloud photo downloads
+        var lastError: Error?
+        for attempt in 1...3 {
+            do {
+                let publicURL = try await directUploadToStorage(
+                    data: finalData,
+                    path: filePath,
+                    bucket: "avatars"
+                )
+                
+                SecureLogger.database("Avatar uploaded", table: "avatars", category: .database)
+                SecureLogger.info("Upload completed in attempt \(attempt)", category: .database)
+                
+                return publicURL
+            } catch {
+                lastError = error
+                SecureLogger.warning("Avatar upload attempt \(attempt) failed: \(error.localizedDescription)", category: .database)
+                
+                if attempt < 3 {
+                    // Short delay before retry
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+                }
+            }
+        }
         
-        SecureLogger.database("Avatar uploaded", table: "avatars", category: .database)
+        throw lastError ?? SupabaseError.networkError
+    }
+    
+    /// Delete user's avatar from storage using direct HTTP (avoids QUIC issues)
+    func deleteAvatar() async throws {
+        guard let userId = currentUser?.id else { return }
         
-        return publicURL.absoluteString
+        let filePath = "avatars/\(userId.uuidString).jpg"
+        
+        // Use direct HTTP delete to avoid QUIC connection issues
+        // The SDK's storage client uses QUIC which times out on stale connections
+        var lastError: Error?
+        for attempt in 1...3 {
+        do {
+                try await directDeleteFromStorage(path: filePath, bucket: "avatars")
+            SecureLogger.database("Avatar deleted", table: "avatars", category: .database)
+                return
+        } catch {
+                lastError = error
+                let nsError = error as NSError
+                
+                // Check if it's a 404 (file doesn't exist) - that's fine
+                if let urlError = error as? URLError, urlError.code == .fileDoesNotExist {
+                    SecureLogger.debug("Avatar already deleted or doesn't exist", category: .database)
+                    return
+                }
+                
+                // For network errors, retry
+                if nsError.domain == NSURLErrorDomain && attempt < 3 {
+                    SecureLogger.warning("Avatar deletion attempt \(attempt) failed: \(error.localizedDescription), retrying...", category: .database)
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+                    continue
+                }
+                
+                // Log but don't throw - avatar deletion shouldn't block account deletion
+                SecureLogger.debug("Avatar deletion failed: \(error.localizedDescription)", category: .database)
+            }
+        }
+        
+        // Log final failure but don't throw - account deletion should continue
+        if let error = lastError {
+            SecureLogger.warning("Avatar deletion failed after 3 attempts: \(error.localizedDescription)", category: .database)
+        }
+    }
+    
+    /// Direct delete from Supabase Storage using custom URLSession
+    /// This bypasses the SDK's internal URLSession which has QUIC issues
+    private func directDeleteFromStorage(path: String, bucket: String) async throws {
+        guard let authToken = await getAuthToken() else {
+            throw SupabaseError.userNotFound
+        }
+        
+        // Supabase Storage delete endpoint expects a DELETE request with JSON body
+        let deleteURLString = "\(supabaseURL)/storage/v1/object/\(bucket)"
+        guard let deleteURL = URL(string: deleteURLString) else {
+            throw SupabaseError.custom("Invalid delete URL")
+        }
+        
+        // Build the delete request
+        var request = URLRequest(url: deleteURL)
+        request.httpMethod = "DELETE"
+        
+        // Body contains the list of paths to delete
+        let body = ["prefixes": [path]]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        // Headers required by Supabase Storage API
+        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        request.timeoutInterval = 15 // Shorter timeout for delete
+        
+        SecureLogger.debug("Starting direct delete from \(bucket)/\(path)", category: .database)
+        
+        let (responseData, response) = try await Self.uploadSession.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SupabaseError.networkError
+        }
+        
+        SecureLogger.debug("Delete response status: \(httpResponse.statusCode)", category: .database)
+        
+        // Handle response codes
+        switch httpResponse.statusCode {
+        case 200, 204:
+            // Success
+            return
+        case 400:
+            // Bad request - might be wrong format, try alternative endpoint
+            // Some Supabase versions use different endpoint format
+            let altDeleteURLString = "\(supabaseURL)/storage/v1/object/\(bucket)/\(path)"
+            guard let altDeleteURL = URL(string: altDeleteURLString) else {
+                throw SupabaseError.custom("Invalid delete URL")
+            }
+            
+            var altRequest = URLRequest(url: altDeleteURL)
+            altRequest.httpMethod = "DELETE"
+            altRequest.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+            altRequest.setValue(supabaseKey, forHTTPHeaderField: "apikey")
+            altRequest.timeoutInterval = 15
+            
+            let (_, altResponse) = try await Self.uploadSession.data(for: altRequest)
+            guard let altHttpResponse = altResponse as? HTTPURLResponse,
+                  (200...299).contains(altHttpResponse.statusCode) || altHttpResponse.statusCode == 404 else {
+                let errorMessage = String(data: responseData, encoding: .utf8) ?? "Unknown error"
+                throw SupabaseError.custom("Delete failed: \(errorMessage)")
+            }
+            return
+        case 404:
+            // File doesn't exist - that's okay
+            return
+        case 401:
+            throw SupabaseError.userNotFound
+        default:
+            let errorMessage = String(data: responseData, encoding: .utf8) ?? "Status \(httpResponse.statusCode)"
+            throw SupabaseError.custom("Delete failed: \(errorMessage)")
+        }
+    }
+    
+    // MARK: - Connection Pre-warming
+    
+    /// Lightweight connection pre-warming
+    /// Called before photo step to pre-establish HTTP/2 connection
+    func aggressiveWarmUp() async {
+        // The direct upload session handles connection pooling automatically
+        // This method is kept for backward compatibility but is now a lightweight no-op
+        // The real work happens in directUploadToStorage with HTTP/2 (no QUIC)
+        SecureLogger.debug("Connection ready (HTTP/2 mode)", category: .database)
+    }
+    
+    // MARK: - Direct Upload Session (Bypasses SDK to avoid QUIC issues)
+    
+    /// Custom URLSession optimized for fast, reliable uploads
+    /// Uses short timeouts + retry logic to handle stale QUIC connections
+    private static let uploadSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral  // Fresh session, no cached connections
+        
+        // Short timeouts to fail fast on stale connections (then retry)
+        config.timeoutIntervalForRequest = 15   // 15 second timeout per request
+        config.timeoutIntervalForResource = 30  // 30 second total resource timeout
+        
+        // Disable waiting for connectivity - fail fast instead
+        config.waitsForConnectivity = false
+        
+        // Connection settings for reliability
+        config.httpShouldUsePipelining = false  // More reliable for uploads
+        config.httpMaximumConnectionsPerHost = 2  // Fewer connections = fresher connections
+        
+        // Request fresh connection by not reusing
+        config.httpShouldSetCookies = false
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        
+        return URLSession(configuration: config)
+    }()
+    
+    /// Supabase configuration for direct API calls
+    private var supabaseURL: String {
+        Bundle.main.object(forInfoDictionaryKey: "SupabaseURL") as? String ?? ""
+    }
+    
+    private var supabaseKey: String {
+        Bundle.main.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String ?? ""
+    }
+    
+    /// Get current auth token for API calls
+    private func getAuthToken() async -> String? {
+        do {
+            let session = try await client.auth.session
+            return session.accessToken
+        } catch {
+            return nil
+        }
+    }
+    
+    /// Direct upload to Supabase Storage using custom URLSession
+    /// This bypasses the SDK's internal URLSession which has QUIC issues
+    private func directUploadToStorage(data: Data, path: String, bucket: String) async throws -> String {
+        guard let authToken = await getAuthToken() else {
+            throw SupabaseError.userNotFound
+        }
+        
+        // Construct the storage upload URL
+        let uploadURLString = "\(supabaseURL)/storage/v1/object/\(bucket)/\(path)"
+        guard let uploadURL = URL(string: uploadURLString) else {
+            throw SupabaseError.custom("Invalid upload URL")
+        }
+        
+        // Build the upload request
+        var request = URLRequest(url: uploadURL)
+        request.httpMethod = "POST"
+        request.httpBody = data
+        
+        // Headers required by Supabase Storage API
+        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
+        request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+        request.setValue("true", forHTTPHeaderField: "x-upsert") // Upsert mode
+        
+        // Shorter timeout for the request itself
+        request.timeoutInterval = 30
+        
+        SecureLogger.debug("Starting direct upload to \(bucket)/\(path)", category: .database)
+        
+        let (responseData, response) = try await Self.uploadSession.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SupabaseError.networkError
+        }
+        
+        SecureLogger.debug("Upload response status: \(httpResponse.statusCode)", category: .database)
+        
+        // Handle response codes
+        switch httpResponse.statusCode {
+        case 200, 201:
+            // Success - construct public URL
+            let publicURL = "\(supabaseURL)/storage/v1/object/public/\(bucket)/\(path)"
+            return publicURL
+        case 400:
+            // Bad request - might need to use PUT for update
+            // Try PUT method for upsert
+            var putRequest = request
+            putRequest.httpMethod = "PUT"
+            
+            let (_, putResponse) = try await Self.uploadSession.data(for: putRequest)
+            guard let putHttpResponse = putResponse as? HTTPURLResponse,
+                  (200...299).contains(putHttpResponse.statusCode) else {
+                let errorMessage = String(data: responseData, encoding: .utf8) ?? "Unknown error"
+                throw SupabaseError.custom("Upload failed: \(errorMessage)")
+            }
+            
+            let publicURL = "\(supabaseURL)/storage/v1/object/public/\(bucket)/\(path)"
+            return publicURL
+        case 401:
+            throw SupabaseError.userNotFound
+        case 413:
+            throw SupabaseError.custom("Image is too large")
+        default:
+            let errorMessage = String(data: responseData, encoding: .utf8) ?? "Status \(httpResponse.statusCode)"
+            throw SupabaseError.custom("Upload failed: \(errorMessage)")
+        }
+    }
+    
+    /// Resize image to fit within maxDimension while maintaining aspect ratio
+    private func resizeImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+        let size = image.size
+        
+        // If image is already small enough, return as-is
+        if size.width <= maxDimension && size.height <= maxDimension {
+            return image
+        }
+        
+        let aspectRatio = size.width / size.height
+        let newSize: CGSize
+        
+        if size.width > size.height {
+            newSize = CGSize(width: maxDimension, height: maxDimension / aspectRatio)
+        } else {
+            newSize = CGSize(width: maxDimension * aspectRatio, height: maxDimension)
+        }
+        
+        // Use UIGraphicsImageRenderer for efficient ARM-optimized resizing
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        return renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
     }
 }
 

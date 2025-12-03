@@ -82,32 +82,32 @@ class GroqService {
         
         // Security: Apply rate limiting
         return try await RateLimitedRequest.execute(type: .groqChat) {
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
             request.setValue("Bearer \(self.apiKey)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONEncoder().encode(requestBody)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(requestBody)
             
             SecureLogger.apiRequest(self.chatBaseURL, method: "POST", category: .api)
-            
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw GroqError.invalidResponse
-            }
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GroqError.invalidResponse
+        }
             
             SecureLogger.apiResponse(self.chatBaseURL, statusCode: httpResponse.statusCode, category: .api)
-            
-            guard httpResponse.statusCode == 200 else {
-                throw GroqError.httpError(statusCode: httpResponse.statusCode)
-            }
-            
-            let groqResponse = try JSONDecoder().decode(GroqResponse.self, from: data)
-            
-            guard let content = groqResponse.choices.first?.message.content else {
-                throw GroqError.noContent
-            }
-            
+        
+        guard httpResponse.statusCode == 200 else {
+            throw GroqError.httpError(statusCode: httpResponse.statusCode)
+        }
+        
+        let groqResponse = try JSONDecoder().decode(GroqResponse.self, from: data)
+        
+        guard let content = groqResponse.choices.first?.message.content else {
+            throw GroqError.noContent
+        }
+        
             return self.parseQuestions(from: content, categories: categories, difficulty: difficulty, expectedCount: count)
         }
     }
@@ -234,60 +234,60 @@ class GroqService {
         
         // Security: Apply rate limiting for transcription
         return try await RateLimitedRequest.execute(type: .groqTranscription) {
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
             request.setValue("Bearer \(self.apiKey)", forHTTPHeaderField: "Authorization")
-            request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-            
-            var body = Data()
-            
-            // Add file field
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(audioURL.lastPathComponent)\"\r\n".data(using: .utf8)!)
-            body.append("Content-Type: audio/m4a\r\n\r\n".data(using: .utf8)!)
-            body.append(audioData)
-            body.append("\r\n".data(using: .utf8)!)
-            
-            // Add model field
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        
+        var body = Data()
+        
+        // Add file field
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(audioURL.lastPathComponent)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: audio/m4a\r\n\r\n".data(using: .utf8)!)
+        body.append(audioData)
+        body.append("\r\n".data(using: .utf8)!)
+        
+        // Add model field
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
             body.append("\(self.transcriptionModel)\r\n".data(using: .utf8)!)
-            
-            // Add temperature field
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"temperature\"\r\n\r\n".data(using: .utf8)!)
-            body.append("0\r\n".data(using: .utf8)!)
-            
-            // Add response_format field
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"response_format\"\r\n\r\n".data(using: .utf8)!)
-            body.append("verbose_json\r\n".data(using: .utf8)!)
-            
-            // Close boundary
-            body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-            
-            request.httpBody = body
-            
+        
+        // Add temperature field
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"temperature\"\r\n\r\n".data(using: .utf8)!)
+        body.append("0\r\n".data(using: .utf8)!)
+        
+        // Add response_format field
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"response_format\"\r\n\r\n".data(using: .utf8)!)
+        body.append("verbose_json\r\n".data(using: .utf8)!)
+        
+        // Close boundary
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        
+        request.httpBody = body
+        
             SecureLogger.apiRequest(self.transcriptionBaseURL, method: "POST", category: .audio)
             SecureLogger.debug("Audio data size: \(audioData.count) bytes", category: .audio)
-            
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw GroqError.invalidResponse
-            }
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GroqError.invalidResponse
+        }
             
             SecureLogger.apiResponse(self.transcriptionBaseURL, statusCode: httpResponse.statusCode, category: .audio)
-            
-            guard httpResponse.statusCode == 200 else {
+        
+        guard httpResponse.statusCode == 200 else {
                 SecureLogger.error("Transcription error: \(httpResponse.statusCode)", category: .audio)
-                throw GroqError.httpError(statusCode: httpResponse.statusCode)
-            }
-            
-            let transcriptionResponse = try JSONDecoder().decode(TranscriptionResponse.self, from: data)
+            throw GroqError.httpError(statusCode: httpResponse.statusCode)
+        }
+        
+        let transcriptionResponse = try JSONDecoder().decode(TranscriptionResponse.self, from: data)
             SecureLogger.transcription("Transcription received", preview: transcriptionResponse.text, category: .audio)
-            
-            return transcriptionResponse.text
+        
+        return transcriptionResponse.text
         }
     }
     
@@ -386,34 +386,34 @@ class GroqService {
         
         // Security: Apply rate limiting
         return try await RateLimitedRequest.execute(type: .groqChat) {
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
             request.setValue("Bearer \(self.apiKey)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONEncoder().encode(requestBody)
-            
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+        
             SecureLogger.apiRequest(self.chatBaseURL, method: "POST", category: .api)
-            
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw GroqError.invalidResponse
-            }
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GroqError.invalidResponse
+        }
             
             SecureLogger.apiResponse(self.chatBaseURL, statusCode: httpResponse.statusCode, category: .api)
-            
-            guard httpResponse.statusCode == 200 else {
-                throw GroqError.httpError(statusCode: httpResponse.statusCode)
-            }
-            
-            let groqResponse = try JSONDecoder().decode(GroqResponse.self, from: data)
-            
-            guard let content = groqResponse.choices.first?.message.content else {
-                throw GroqError.noContent
-            }
-            
+        
+        guard httpResponse.statusCode == 200 else {
+            throw GroqError.httpError(statusCode: httpResponse.statusCode)
+        }
+        
+        let groqResponse = try JSONDecoder().decode(GroqResponse.self, from: data)
+        
+        guard let content = groqResponse.choices.first?.message.content else {
+            throw GroqError.noContent
+        }
+        
             SecureLogger.info("Evaluation received", category: .api)
-            
+        
             return self.parseEvaluation(from: content)
         }
     }
@@ -497,44 +497,44 @@ class GroqService {
         
         // Security: Apply rate limiting
         return try await RateLimitedRequest.execute(type: .groqChat) {
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
             request.setValue("Bearer \(self.apiKey)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONEncoder().encode(requestBody)
-            
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+        
             SecureLogger.debug("Generating skills...", category: .api)
-            
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw GroqError.invalidResponse
-            }
-            
-            guard httpResponse.statusCode == 200 else {
-                throw GroqError.httpError(statusCode: httpResponse.statusCode)
-            }
-            
-            let groqResponse = try JSONDecoder().decode(GroqResponse.self, from: data)
-            
-            guard let content = groqResponse.choices.first?.message.content else {
-                throw GroqError.noContent
-            }
-            
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GroqError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            throw GroqError.httpError(statusCode: httpResponse.statusCode)
+        }
+        
+        let groqResponse = try JSONDecoder().decode(GroqResponse.self, from: data)
+        
+        guard let content = groqResponse.choices.first?.message.content else {
+            throw GroqError.noContent
+        }
+        
             SecureLogger.info("Skills generated successfully", category: .api)
-            
-            // Clean up the response - remove markdown code blocks if present
-            let cleanedContent = content
-                .replacingOccurrences(of: "```json", with: "")
-                .replacingOccurrences(of: "```", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            // Parse JSON array
-            guard let jsonData = cleanedContent.data(using: .utf8),
-                  let skills = try? JSONDecoder().decode([String].self, from: jsonData) else {
-                throw GroqError.noContent
-            }
-            
+        
+        // Clean up the response - remove markdown code blocks if present
+        let cleanedContent = content
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Parse JSON array
+        guard let jsonData = cleanedContent.data(using: .utf8),
+              let skills = try? JSONDecoder().decode([String].self, from: jsonData) else {
+            throw GroqError.noContent
+        }
+        
             // Security: Sanitize returned skills
             return InputSanitizer.sanitizeSkills(skills)
         }
@@ -587,77 +587,77 @@ class GroqService {
         
         // Security: Apply rate limiting
         return try await RateLimitedRequest.execute(type: .groqChat, maxRetries: 2) {
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
             request.setValue("Bearer \(self.apiKey)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-            request.timeoutInterval = 60 // 60 second timeout
-            
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        request.timeoutInterval = 60 // 60 second timeout
+        
             SecureLogger.debug("Searching for \(count) jobs for role", category: .api)
-            
+        
             let (data, response) = try await self.browserSearchSession.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw GroqError.invalidResponse
-            }
-            
-            guard httpResponse.statusCode == 200 else {
-                throw GroqError.httpError(statusCode: httpResponse.statusCode)
-            }
-            
-            let groqResponse = try JSONDecoder().decode(GroqResponse.self, from: data)
-            
-            guard let content = groqResponse.choices.first?.message.content else {
-                throw GroqError.noContent
-            }
-            
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GroqError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            throw GroqError.httpError(statusCode: httpResponse.statusCode)
+        }
+        
+        let groqResponse = try JSONDecoder().decode(GroqResponse.self, from: data)
+        
+        guard let content = groqResponse.choices.first?.message.content else {
+            throw GroqError.noContent
+        }
+        
             SecureLogger.info("Jobs received, parsing...", category: .api)
-            
-            // Clean up the response
-            var cleanedContent = content
-                .replacingOccurrences(of: "```json", with: "")
-                .replacingOccurrences(of: "```", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            // Find the JSON array bounds
-            if let startIndex = cleanedContent.firstIndex(of: "["),
-               let endIndex = cleanedContent.lastIndex(of: "]") {
-                cleanedContent = String(cleanedContent[startIndex...endIndex])
-            }
-            
-            // Parse JSON array
-            guard let jsonData = cleanedContent.data(using: .utf8) else {
+        
+        // Clean up the response
+        var cleanedContent = content
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Find the JSON array bounds
+        if let startIndex = cleanedContent.firstIndex(of: "["),
+           let endIndex = cleanedContent.lastIndex(of: "]") {
+            cleanedContent = String(cleanedContent[startIndex...endIndex])
+        }
+        
+        // Parse JSON array
+        guard let jsonData = cleanedContent.data(using: .utf8) else {
                 SecureLogger.error("Failed to convert content to data", category: .api)
-                throw GroqError.noContent
+            throw GroqError.noContent
+        }
+        
+        do {
+            let jobResponses = try JSONDecoder().decode([JobSearchResponse].self, from: jsonData)
+                SecureLogger.info("Successfully parsed \(jobResponses.count) jobs", category: .api)
+            
+            let jobs = jobResponses.map { response in
+                JobPost(
+                    role: response.role,
+                    company: response.company,
+                    location: response.location,
+                    salary: response.salary,
+                    tags: response.tags,
+                    description: response.description,
+                    responsibilities: response.responsibilities,
+                        logoName: self.iconForCategory(response.tags.first ?? "")
+                )
             }
             
-            do {
-                let jobResponses = try JSONDecoder().decode([JobSearchResponse].self, from: jsonData)
-                SecureLogger.info("Successfully parsed \(jobResponses.count) jobs", category: .api)
-                
-                let jobs = jobResponses.map { response in
-                    JobPost(
-                        role: response.role,
-                        company: response.company,
-                        location: response.location,
-                        salary: response.salary,
-                        tags: response.tags,
-                        description: response.description,
-                        responsibilities: response.responsibilities,
-                        logoName: self.iconForCategory(response.tags.first ?? "")
-                    )
-                }
-                
-                // If we got fewer jobs than requested, that's still a valid response
-                if jobs.count < count {
+            // If we got fewer jobs than requested, that's still a valid response
+            if jobs.count < count {
                     SecureLogger.warning("Only received \(jobs.count) jobs instead of \(count)", category: .api)
-                }
-                
-                return jobs
-            } catch {
+            }
+            
+            return jobs
+        } catch {
                 SecureLogger.error("JSON parsing failed: \(error.localizedDescription)", category: .api)
-                throw error
+            throw error
             }
         }
     }
@@ -705,34 +705,34 @@ class GroqService {
         
         // Security: Apply rate limiting for categories request
         let categories: [String] = try await RateLimitedRequest.execute(type: .groqChat) {
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
             request.setValue("Bearer \(self.apiKey)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: categoriesRequestBody)
-            request.timeoutInterval = 30
-            
-            let (categoriesData, categoriesResponse) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = categoriesResponse as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                throw GroqError.invalidResponse
-            }
-            
-            let categoriesGroqResponse = try JSONDecoder().decode(GroqResponse.self, from: categoriesData)
-            guard let categoriesContent = categoriesGroqResponse.choices.first?.message.content else {
-                throw GroqError.noContent
-            }
-            
-            let cleanedCategories = categoriesContent
-                .replacingOccurrences(of: "```json", with: "")
-                .replacingOccurrences(of: "```", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            guard let categoriesJsonData = cleanedCategories.data(using: .utf8),
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: categoriesRequestBody)
+        request.timeoutInterval = 30
+        
+        let (categoriesData, categoriesResponse) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = categoriesResponse as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw GroqError.invalidResponse
+        }
+        
+        let categoriesGroqResponse = try JSONDecoder().decode(GroqResponse.self, from: categoriesData)
+        guard let categoriesContent = categoriesGroqResponse.choices.first?.message.content else {
+            throw GroqError.noContent
+        }
+        
+        let cleanedCategories = categoriesContent
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard let categoriesJsonData = cleanedCategories.data(using: .utf8),
                   let cats = try? JSONDecoder().decode([String].self, from: categoriesJsonData) else {
-                throw GroqError.noContent
-            }
-            
+            throw GroqError.noContent
+        }
+        
             return cats
         }
         
@@ -795,54 +795,54 @@ class GroqService {
             request.httpMethod = "POST"
             request.setValue("Bearer \(self.apiKey)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: jobsRequestBody)
-            request.timeoutInterval = 60
-            
+        request.httpBody = try JSONSerialization.data(withJSONObject: jobsRequestBody)
+        request.timeoutInterval = 60
+        
             let (jobsData, jobsResponse) = try await self.browserSearchSession.data(for: request)
-            
-            guard let jobsHttpResponse = jobsResponse as? HTTPURLResponse, jobsHttpResponse.statusCode == 200 else {
-                throw GroqError.invalidResponse
-            }
-            
-            let jobsGroqResponse = try JSONDecoder().decode(GroqResponse.self, from: jobsData)
-            guard let jobsContent = jobsGroqResponse.choices.first?.message.content else {
-                throw GroqError.noContent
-            }
-            
+        
+        guard let jobsHttpResponse = jobsResponse as? HTTPURLResponse, jobsHttpResponse.statusCode == 200 else {
+            throw GroqError.invalidResponse
+        }
+        
+        let jobsGroqResponse = try JSONDecoder().decode(GroqResponse.self, from: jobsData)
+        guard let jobsContent = jobsGroqResponse.choices.first?.message.content else {
+            throw GroqError.noContent
+        }
+        
             SecureLogger.info("Jobs with categories received", category: .api)
-            
-            var cleanedJobsContent = jobsContent
-                .replacingOccurrences(of: "```json", with: "")
-                .replacingOccurrences(of: "```", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            // Find the JSON object bounds
-            if let startIndex = cleanedJobsContent.firstIndex(of: "{"),
-               let endIndex = cleanedJobsContent.lastIndex(of: "}") {
-                cleanedJobsContent = String(cleanedJobsContent[startIndex...endIndex])
-            }
-            
-            guard let jobsJsonData = cleanedJobsContent.data(using: .utf8) else {
-                throw GroqError.noContent
-            }
-            
-            let searchResult = try JSONDecoder().decode(JobSearchResultResponse.self, from: jobsJsonData)
-            
-            let jobs = searchResult.jobs.map { response in
-                JobPost(
-                    role: response.role,
-                    company: response.company,
-                    location: response.location,
-                    salary: response.salary,
-                    tags: response.tags,
-                    description: response.description,
-                    responsibilities: response.responsibilities,
-                    category: response.category,
+        
+        var cleanedJobsContent = jobsContent
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Find the JSON object bounds
+        if let startIndex = cleanedJobsContent.firstIndex(of: "{"),
+           let endIndex = cleanedJobsContent.lastIndex(of: "}") {
+            cleanedJobsContent = String(cleanedJobsContent[startIndex...endIndex])
+        }
+        
+        guard let jobsJsonData = cleanedJobsContent.data(using: .utf8) else {
+            throw GroqError.noContent
+        }
+        
+        let searchResult = try JSONDecoder().decode(JobSearchResultResponse.self, from: jobsJsonData)
+        
+        let jobs = searchResult.jobs.map { response in
+            JobPost(
+                role: response.role,
+                company: response.company,
+                location: response.location,
+                salary: response.salary,
+                tags: response.tags,
+                description: response.description,
+                responsibilities: response.responsibilities,
+                category: response.category,
                     logoName: self.iconForCategory(response.category ?? response.tags.first ?? "")
-                )
-            }
-            
-            return JobSearchResult(categories: searchResult.categories, jobs: jobs)
+            )
+        }
+        
+        return JobSearchResult(categories: searchResult.categories, jobs: jobs)
         }
     }
     
@@ -905,33 +905,33 @@ class GroqService {
         // Security: Apply rate limiting
         return try await RateLimitedRequest.execute(type: .groqChat) {
             var request = URLRequest(url: URL(string: self.chatBaseURL)!)
-            request.httpMethod = "POST"
+        request.httpMethod = "POST"
             request.setValue("Bearer \(self.apiKey)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-            request.timeoutInterval = 30
-            
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        request.timeoutInterval = 30
+        
             let (data, response) = try await self.browserSearchSession.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw GroqError.invalidResponse
-            }
-            
-            guard httpResponse.statusCode == 200 else {
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GroqError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
                 SecureLogger.error("Groq API error: \(httpResponse.statusCode)", category: .api)
-                throw GroqError.apiError(message: "API returned status code \(httpResponse.statusCode)")
-            }
-            
-            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-            
-            guard let choices = json?["choices"] as? [[String: Any]],
-                  let firstChoice = choices.first,
-                  let message = firstChoice["message"] as? [String: Any],
-                  let content = message["content"] as? String else {
-                throw GroqError.noContent
-            }
-            
-            return content.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw GroqError.apiError(message: "API returned status code \(httpResponse.statusCode)")
+        }
+        
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        
+        guard let choices = json?["choices"] as? [[String: Any]],
+              let firstChoice = choices.first,
+              let message = firstChoice["message"] as? [String: Any],
+              let content = message["content"] as? String else {
+            throw GroqError.noContent
+        }
+        
+        return content.trimmingCharacters(in: .whitespacesAndNewlines)
         }
     }
     

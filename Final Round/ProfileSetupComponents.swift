@@ -46,13 +46,21 @@ struct SkillTag: View {
 
 // MARK: - Experience Level Selector
 struct ExperienceLevelSelector: View {
-    @Binding var selectedLevel: ProfileSetupViewModel.ExperienceLevel
+    @Binding var selectedLevel: ProfileSetupViewModel.ExperienceLevel?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Experience Level")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(AppTheme.textSecondary)
+            HStack {
+                Text("Experience Level")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(AppTheme.textSecondary)
+                
+                if selectedLevel == nil {
+                    Text("(Required)")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(AppTheme.softRed.opacity(0.8))
+                }
+            }
             
             VStack(spacing: 8) {
                 ForEach(ProfileSetupViewModel.ExperienceLevel.allCases, id: \.self) { level in

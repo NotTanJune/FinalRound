@@ -23,7 +23,8 @@ struct ContentView: View {
                 ProfileSetupView()
             } else {
                 MainTabView()
-                    .id(appState.selectedTab) // Force view refresh when tab changes
+                // Removed .id(appState.selectedTab) to prevent view recreation
+                // Tab state is managed by appState.selectedTab binding
             }
         }
     }

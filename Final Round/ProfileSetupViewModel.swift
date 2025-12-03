@@ -9,7 +9,7 @@ class ProfileSetupViewModel: ObservableObject {
     // Identity Step
     @Published var fullName = ""
     @Published var targetRole = ""
-    @Published var experienceLevel: ExperienceLevel = .mid
+    @Published var experienceLevel: ExperienceLevel? = nil  // No default - user must select
     
     // Skills Step
     @Published var generatedSkills: [String] = []
@@ -26,10 +26,13 @@ class ProfileSetupViewModel: ObservableObject {
     // Photo Step
     @Published var selectedPhotoItem: PhotosPickerItem?
     @Published var profileImage: UIImage?
+    @Published var isLoadingPhoto = false
+    @Published var photoLoadError: String?
     
     // Saving
     @Published var isSaving = false
     @Published var saveError: String?
+    @Published var saveProgress: String = ""  // Progress message during save
     
     // Security: Input validation errors
     @Published var roleValidationError: String?
@@ -76,7 +79,8 @@ class ProfileSetupViewModel: ObservableObject {
         let trimmedRole = targetRole.trimmingCharacters(in: .whitespaces)
         return !trimmedRole.isEmpty && 
                trimmedRole.count <= InputSanitizer.Limits.role &&
-               roleValidationError == nil
+               roleValidationError == nil &&
+               experienceLevel != nil  // User must explicitly select experience level
     }
     
     var canProceedFromSkills: Bool {
@@ -166,6 +170,10 @@ class ProfileSetupViewModel: ObservableObject {
                 currentStep = .location
             case .location:
                 currentStep = .photo
+                // Pre-warm connection when entering photo step
+                Task {
+                    await SupabaseService.shared.aggressiveWarmUp()
+                }
             case .photo:
                 Task {
                     await saveProfile()
@@ -279,9 +287,11 @@ class ProfileSetupViewModel: ObservableObject {
         isLoadingSkills = true
         skillsError = nil
         
+        let levelText = experienceLevel?.rawValue ?? "Mid Level"
+        
         do {
             let prompt = """
-            Generate a list of 15 relevant hard and soft skills for a \(targetRole) with \(experienceLevel.rawValue) level experience.
+            Generate a list of 15 relevant hard and soft skills for a \(targetRole) with \(levelText) level experience.
             Return strictly a JSON array of strings, e.g., ["Swift", "Leadership", "System Design"].
             Do not include markdown formatting, code blocks, or extra text. Only return the JSON array.
             """
@@ -348,26 +358,73 @@ class ProfileSetupViewModel: ObservableObject {
     func loadPhoto() async {
         guard let item = selectedPhotoItem else { return }
         
-        do {
-            guard let data = try await item.loadTransferable(type: Data.self),
-                  let image = UIImage(data: data) else {
-                return
-            }
-            
-            // Security: Validate image size
-            if let jpegData = image.jpegData(compressionQuality: 0.7),
-               jpegData.count > 5 * 1024 * 1024 {
-                await MainActor.run {
-                    self.saveError = "Image is too large. Please select a smaller image."
+        await MainActor.run {
+            self.isLoadingPhoto = true
+            self.photoLoadError = nil
+        }
+        
+        // Create a task with timeout for iCloud-offloaded images
+        let loadTask = Task { () -> UIImage? in
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else {
+                    return nil
                 }
-                return
+                return image
+            } catch {
+                SecureLogger.error("Failed to load image: \(error)", category: .general)
+                return nil
             }
+        }
+        
+        // Timeout task - 30 seconds for iCloud downloads
+        let timeoutTask = Task {
+            try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 seconds
+            return nil as UIImage?
+        }
+        
+        // Race between load and timeout
+        let result: UIImage? = await withTaskGroup(of: UIImage?.self) { group in
+            group.addTask { await loadTask.value }
+            group.addTask { await timeoutTask.value }
             
-            await MainActor.run {
-                self.profileImage = image
+            // Return first non-nil result, or nil if timeout wins
+            for await result in group {
+                if result != nil {
+                    // Cancel the other task
+                    group.cancelAll()
+                    return result
+                }
             }
-        } catch {
-            SecureLogger.error("Failed to load image", category: .general)
+            return nil
+        }
+        
+        // Cancel any remaining tasks
+        loadTask.cancel()
+        timeoutTask.cancel()
+        
+        await MainActor.run {
+            self.isLoadingPhoto = false
+            
+            if let image = result {
+                // Security: Validate image size
+                if let jpegData = image.jpegData(compressionQuality: 0.7),
+                   jpegData.count > 5 * 1024 * 1024 {
+                    self.photoLoadError = "Image is too large. Please select a smaller image."
+                    return
+                }
+                self.profileImage = image
+            } else {
+                self.photoLoadError = "Failed to load image. It may be stored in iCloud. Please try again or select a different photo."
+            }
+        }
+        
+        // After iCloud download completes, warm up connection for upcoming upload
+        // This runs in background while user reviews the photo
+        if result != nil {
+            Task {
+                await SupabaseService.shared.aggressiveWarmUp()
+            }
         }
     }
     
@@ -376,13 +433,21 @@ class ProfileSetupViewModel: ObservableObject {
     func saveProfile() async {
         isSaving = true
         saveError = nil
+        saveProgress = "Preparing..."
         
         do {
             var avatarURL: String?
             
             // Upload photo if provided
             if let image = profileImage {
+                await MainActor.run {
+                    saveProgress = "Uploading photo..."
+                }
                 avatarURL = try await SupabaseService.shared.uploadAvatar(image: image)
+            }
+            
+            await MainActor.run {
+                saveProgress = "Saving profile..."
             }
             
             // Security: Sanitize all inputs before saving
@@ -395,7 +460,7 @@ class ProfileSetupViewModel: ObservableObject {
             try await SupabaseService.shared.saveProfile(
                 fullName: sanitizedName,
                 targetRole: sanitizedRole,
-                yearsOfExperience: experienceLevel.rawValue,
+                yearsOfExperience: experienceLevel?.rawValue ?? "Mid Level",
                 skills: sanitizedSkills,
                 avatarURL: avatarURL,
                 location: sanitizedLocation,
@@ -407,12 +472,19 @@ class ProfileSetupViewModel: ObservableObject {
             await MainActor.run {
                 self.currentStep = .complete
                 self.isSaving = false
+                self.saveProgress = ""
             }
         } catch {
             SecureLogger.error("Failed to save profile", category: .database)
             await MainActor.run {
-                self.saveError = error.localizedDescription
+                // Provide user-friendly error message for timeout
+                if error.localizedDescription.contains("timed out") {
+                    self.saveError = "Upload timed out. Please try again - the image has been optimized for faster upload."
+                } else {
+                    self.saveError = error.localizedDescription
+                }
                 self.isSaving = false
+                self.saveProgress = ""
             }
         }
     }

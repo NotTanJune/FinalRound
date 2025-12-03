@@ -129,7 +129,7 @@ struct JobDescriptionView: View {
             .background(AppTheme.background)
             
             // Bottom Bar
-            BottomActionBar {
+            BottomActionBar(showsSeparator: false) {
                 HStack(spacing: 16) {
                     Button {
                         showingInterviewSetup = true
