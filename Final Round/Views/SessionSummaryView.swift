@@ -15,6 +15,7 @@ struct SessionSummaryView: View {
     var isFromHistory: Bool = false
     
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var tutorialManager: TutorialManager
     @State private var showingAnalytics = true
     @State private var hasSavedSession = false
     @State private var showingSharePreview = false
@@ -81,7 +82,61 @@ struct SessionSummaryView: View {
         }
     }
     
+    // MARK: - Extracted Views for Tutorial Highlights
+    
+    /// Grade circle view - extracted for precise tutorial highlighting
+    @ViewBuilder
+    private var gradeCircleView: some View {
+        ZStack {
+            Circle()
+                .fill(gradeBackgroundColor)
+                .frame(width: 80, height: 80)
+            
+            if analysisManager.isAnalyzing {
+                // Show progress ring while analyzing
+                Circle()
+                    .stroke(AppTheme.primary.opacity(0.3), lineWidth: 4)
+                    .frame(width: 72, height: 72)
+                Circle()
+                    .trim(from: 0, to: analysisManager.totalCount > 0 ? Double(analysisManager.completedCount) / Double(analysisManager.totalCount) : 0)
+                    .stroke(AppTheme.primary, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .frame(width: 72, height: 72)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.spring(response: 0.4), value: analysisManager.completedCount)
+                
+                Text("\(analysisManager.completedCount)/\(analysisManager.totalCount)")
+                    .font(AppTheme.font(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
+            } else {
+                VStack(spacing: 2) {
+                    Text(session.overallGrade)
+                        .font(AppTheme.font(size: 28, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text("\(Int(session.averageScore))")
+                        .font(AppTheme.font(size: 14, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: analysisManager.isAnalyzing)
+    }
+    
+    /// Stats row view - extracted for precise tutorial highlighting
+    private var statsRowView: some View {
+        HStack(spacing: 8) {
+            SummaryStat(label: "Role", value: session.role)
+            SummaryStat(label: "Duration", value: session.formattedDuration)
+            SummaryStat(label: "Questions", value: "\(answeredQuestions)/\(session.questions.count)")
+        }
+    }
+    
     var body: some View {
+        TutorialWrapper(tutorialType: .sessionSummary) {
+            summaryContent
+        }
+    }
+    
+    private var summaryContent: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
@@ -89,7 +144,7 @@ struct SessionSummaryView: View {
                     onDismiss()
                 } label: {
                     Image(systemName: "arrow.left")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(AppTheme.font(size: 16, weight: .semibold))
                         .foregroundStyle(AppTheme.textPrimary)
                         .padding(12)
                         .background(AppTheme.cardBackground)
@@ -99,7 +154,7 @@ struct SessionSummaryView: View {
                 Spacer()
                 
                 Text("Feedback")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(AppTheme.font(size: 18, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
                 
                 Spacer()
@@ -108,16 +163,18 @@ struct SessionSummaryView: View {
                     showingSharePreview = true
                 } label: {
                     Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(AppTheme.font(size: 16, weight: .semibold))
                         .foregroundStyle(analysisManager.isAnalyzing ? AppTheme.textSecondary : AppTheme.textPrimary)
                         .padding(12)
                         .background(AppTheme.cardBackground)
                         .clipShape(Circle())
                 }
                 .disabled(analysisManager.isAnalyzing)
+                .tutorialHighlight("summary-share")
             }
             .padding(20)
             
+            ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(spacing: 24) {
                     // Analysis Progress Banner (shown during analysis)
@@ -135,57 +192,27 @@ struct SessionSummaryView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(analysisManager.isAnalyzing ? "Analyzing..." : "Great Job!")
-                                    .font(.system(size: 24, weight: .bold))
+                                    .font(AppTheme.font(size: 24, weight: .bold))
                                     .foregroundStyle(AppTheme.textPrimary)
                                 Text(analysisManager.isAnalyzing ? "Processing your responses" : "You've completed the interview.")
-                                    .font(.system(size: 14))
+                                    .font(AppTheme.font(size: 14))
                                     .foregroundStyle(AppTheme.textSecondary)
                             }
                             Spacer()
-                            ZStack {
-                                Circle()
-                                    .fill(gradeBackgroundColor)
-                                    .frame(width: 80, height: 80)
-                                
-                                if analysisManager.isAnalyzing {
-                                    // Show progress ring while analyzing
-                                    Circle()
-                                        .stroke(AppTheme.primary.opacity(0.3), lineWidth: 4)
-                                        .frame(width: 72, height: 72)
-                                    Circle()
-                                        .trim(from: 0, to: analysisManager.totalCount > 0 ? Double(analysisManager.completedCount) / Double(analysisManager.totalCount) : 0)
-                                        .stroke(AppTheme.primary, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                                        .frame(width: 72, height: 72)
-                                        .rotationEffect(.degrees(-90))
-                                        .animation(.spring(response: 0.4), value: analysisManager.completedCount)
-                                    
-                                    Text("\(analysisManager.completedCount)/\(analysisManager.totalCount)")
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundStyle(.white)
-                                } else {
-                                VStack(spacing: 2) {
-                                    Text(session.overallGrade)
-                                        .font(.system(size: 28, weight: .bold))
-                                        .foregroundStyle(.white)
-                                    Text("\(Int(session.averageScore))")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundStyle(.white.opacity(0.9))
-                                }
-                            }
-                            }
-                            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: analysisManager.isAnalyzing)
+                            // Grade circle - wrapped for precise highlighting
+                            gradeCircleView
+                                .tutorialHighlight("summary-grade")
                         }
                         
-                        HStack(spacing: 8) {
-                            SummaryStat(label: "Role", value: session.role)
-                            SummaryStat(label: "Duration", value: session.formattedDuration)
-                            SummaryStat(label: "Questions", value: "\(answeredQuestions)/\(session.questions.count)")
-                        }
+                        // Stats row - wrapped for precise highlighting
+                        statsRowView
+                            .tutorialHighlight("summary-stats")
                     }
                     .padding(20)
                     .background(AppTheme.cardBackground)
                     .cornerRadius(24)
                     .padding(.horizontal, 20)
+                    .id("top-section")
                     
                     // Analytics Overview Cards (show skeleton when analyzing)
                     if analysisManager.isAnalyzing && analysisManager.completedCount == 0 {
@@ -202,7 +229,7 @@ struct SessionSummaryView: View {
                         VStack(alignment: .leading, spacing: 16) {
                             HStack {
                                 Text("Performance Analytics")
-                                    .font(.system(size: 18, weight: .bold))
+                                    .font(AppTheme.font(size: 18, weight: .bold))
                                     .foregroundStyle(AppTheme.textPrimary)
                                 Spacer()
                                 Button {
@@ -211,7 +238,7 @@ struct SessionSummaryView: View {
                                     }
                                 } label: {
                                     Image(systemName: "chevron.up")
-                                        .font(.system(size: 14))
+                                        .font(AppTheme.font(size: 14))
                                         .foregroundStyle(AppTheme.textSecondary)
                                 }
                             }
@@ -240,11 +267,11 @@ struct SessionSummaryView: View {
                         } label: {
                             HStack {
                                 Text("Show Performance Analytics")
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .font(AppTheme.font(size: 16, weight: .semibold))
                                     .foregroundStyle(AppTheme.primary)
                                 Spacer()
                                 Image(systemName: "chevron.down")
-                                    .font(.system(size: 14))
+                                    .font(AppTheme.font(size: 14))
                                     .foregroundStyle(AppTheme.primary)
                             }
                             .padding(16)
@@ -258,7 +285,7 @@ struct SessionSummaryView: View {
                     if !analysisManager.isAnalyzing, let sessionSummary = generateSessionSummary() {
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Key Insights")
-                                .font(.system(size: 18, weight: .bold))
+                                .font(AppTheme.font(size: 18, weight: .bold))
                                 .foregroundStyle(AppTheme.textPrimary)
                                 .padding(.horizontal, 20)
                             
@@ -268,17 +295,17 @@ struct SessionSummaryView: View {
                                         Image(systemName: "star.fill")
                                             .foregroundStyle(AppTheme.primary)
                                         Text("Strengths")
-                                            .font(.system(size: 16, weight: .semibold))
+                                            .font(AppTheme.font(size: 16, weight: .semibold))
                                             .foregroundStyle(AppTheme.textPrimary)
                                     }
                                     
                                     ForEach(sessionSummary.strengths, id: \.self) { strength in
                                         HStack(alignment: .top, spacing: 8) {
                                             Image(systemName: "checkmark.circle.fill")
-                                                .font(.system(size: 12))
+                                                .font(AppTheme.font(size: 12))
                                                 .foregroundStyle(AppTheme.primary)
                                             Text(strength)
-                                                .font(.system(size: 14))
+                                                .font(AppTheme.font(size: 14))
                                                 .foregroundStyle(AppTheme.textSecondary)
                                         }
                                     }
@@ -299,17 +326,17 @@ struct SessionSummaryView: View {
                                         Image(systemName: "lightbulb.fill")
                                             .foregroundStyle(Color.orange)
                                         Text("Recommendations")
-                                            .font(.system(size: 16, weight: .semibold))
+                                            .font(AppTheme.font(size: 16, weight: .semibold))
                                             .foregroundStyle(AppTheme.textPrimary)
                                     }
                                     
                                     ForEach(Array(sessionSummary.overallRecommendations.enumerated()), id: \.offset) { index, recommendation in
                                         HStack(alignment: .top, spacing: 8) {
                                             Text("\(index + 1).")
-                                                .font(.system(size: 14, weight: .semibold))
+                                                .font(AppTheme.font(size: 14, weight: .semibold))
                                                 .foregroundStyle(Color.orange)
                                             Text(recommendation)
-                                                .font(.system(size: 14))
+                                                .font(AppTheme.font(size: 14))
                                                 .foregroundStyle(AppTheme.textSecondary)
                                         }
                                     }
@@ -324,16 +351,38 @@ struct SessionSummaryView: View {
                                 ))
                             }
                         }
+                        .tutorialHighlight("summary-insights")
+                        .id("insights-section")
                     }
                     
                     // Questions List with Progressive Loading
                     VStack(alignment: .leading, spacing: 16) {
+                        // Heading + first question for tutorial highlight
+                    VStack(alignment: .leading, spacing: 16) {
                         Text("Questions Analysis")
-                            .font(.system(size: 18, weight: .bold))
+                                .font(AppTheme.font(size: 18, weight: .bold))
                             .foregroundStyle(AppTheme.textPrimary)
                             .padding(.horizontal, 20)
                         
-                        ForEach(Array(session.questions.enumerated()), id: \.offset) { index, question in
+                            if let firstQuestion = session.questions.first {
+                                ProgressiveQuestionRow(
+                                    index: 1,
+                                    question: firstQuestion,
+                                    analysisState: analysisManager.stateForQuestion(0),
+                                    suggestionsEngine: suggestionsEngine
+                                )
+                                .transition(.asymmetric(
+                                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                                    removal: .opacity
+                                ))
+                                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: analysisManager.stateForQuestion(0))
+                            }
+                        }
+                        .tutorialHighlight("summary-questions")
+                        .id("questions-section")
+                        
+                        // Remaining questions
+                        ForEach(Array(session.questions.enumerated().dropFirst()), id: \.offset) { index, question in
                             ProgressiveQuestionRow(
                                 index: index + 1,
                                 question: question,
@@ -349,6 +398,44 @@ struct SessionSummaryView: View {
                     }
                 }
                 .padding(.bottom, 100)
+            }
+            .onChange(of: tutorialManager.currentStepIndex) { oldIndex, newIndex in
+                // Auto-scroll based on tutorial step
+                if tutorialManager.activeTutorial == .sessionSummary {
+                    let currentStep = tutorialManager.currentStep
+                    let isGoingBack = newIndex < oldIndex
+                    
+                    if isGoingBack {
+                        // Going backwards - scroll to appropriate section
+                        if let stepId = currentStep?.id {
+                            switch stepId {
+                            case "share-button", "overall-grade", "analytics-cards", "scroll-hint":
+                                // These are at the top - scroll to top
+                                withAnimation(.easeInOut(duration: 0.5)) {
+                                    proxy.scrollTo("top-section", anchor: .top)
+                                }
+                            case "key-insights":
+                                withAnimation(.easeInOut(duration: 0.5)) {
+                                    proxy.scrollTo("insights-section", anchor: .center)
+                                }
+                            default:
+                                break
+                            }
+                        }
+                    } else {
+                        // Going forwards
+                        if currentStep?.id == "key-insights" {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                proxy.scrollTo("insights-section", anchor: .center)
+                            }
+                        } else if currentStep?.id == "questions-analysis" {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                proxy.scrollTo("questions-section", anchor: .top)
+                            }
+                        }
+                    }
+                }
+            }
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: analysisManager.isAnalyzing)
             
@@ -409,6 +496,13 @@ struct SessionSummaryView: View {
                 analysisManager.initializeFromSession(session)
             } else {
                 startDeferredAnalysis()
+            }
+            
+            // Start summary tutorial if not seen yet (not for history views)
+            if !isFromHistory {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    tutorialManager.startSummaryTutorialIfNeeded()
+                }
             }
         }
         .sheet(isPresented: $showingSharePreview) {
@@ -511,12 +605,12 @@ struct AnalysisProgressBanner: View {
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(analysisManager.progress?.progressText ?? "Preparing analysis...")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(AppTheme.font(size: 14, weight: .semibold))
                         .foregroundStyle(AppTheme.textPrimary)
                     
                 if let progress = analysisManager.progress {
                     Text(progress.currentState.displayText)
-                        .font(.system(size: 12))
+                        .font(AppTheme.font(size: 12))
                             .foregroundStyle(AppTheme.textSecondary)
                 }
             }
@@ -590,14 +684,14 @@ struct ProgressiveQuestionRow: View {
                             .tint(AppTheme.primary)
                     } else {
                 Text("\(index)")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(AppTheme.font(size: 14, weight: .bold))
                             .foregroundStyle(badgeTextColor)
                     }
                 }
                 
                 VStack(alignment: .leading, spacing: 8) {
                     Text(question.text)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(AppTheme.font(size: 16, weight: .medium))
                         .foregroundStyle(AppTheme.textPrimary)
                     
                     // Status/Metrics Row
@@ -611,7 +705,7 @@ struct ProgressiveQuestionRow: View {
                                 withAnimation(.spring(response: 0.3)) { isExpanded.toggle() }
                             } label: {
                                 Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                    .font(.system(size: 14))
+                                    .font(AppTheme.font(size: 14))
                                     .foregroundStyle(AppTheme.textSecondary)
                                     .frame(width: 24, height: 24)
                             }
@@ -672,30 +766,30 @@ struct AnalysisStatusBadge: View {
             switch state {
             case .pending:
                 Image(systemName: "clock")
-                    .font(.system(size: 10))
+                    .font(AppTheme.font(size: 10))
                 Text("Waiting...")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(AppTheme.font(size: 12, weight: .medium))
                 
             case .queued:
                 Image(systemName: "list.bullet")
-                    .font(.system(size: 10))
+                    .font(AppTheme.font(size: 10))
                 Text("In queue...")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(AppTheme.font(size: 12, weight: .medium))
                 
             case .transcribing:
                 LoadingDots()
                 Text("Transcribing")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(AppTheme.font(size: 12, weight: .medium))
                 
             case .analyzingTone:
                 LoadingDots()
                 Text("Analyzing")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(AppTheme.font(size: 12, weight: .medium))
                 
             case .evaluating:
                 LoadingDots()
                 Text("Evaluating")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(AppTheme.font(size: 12, weight: .medium))
                 
             case .complete:
                 // Show actual metrics
@@ -735,15 +829,15 @@ struct AnalysisStatusBadge: View {
                         
             case .failed:
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 10))
+                    .font(AppTheme.font(size: 10))
                 Text("Failed")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(AppTheme.font(size: 12, weight: .medium))
                 
             case .skipped:
                 Image(systemName: "forward.fill")
-                    .font(.system(size: 10))
+                    .font(AppTheme.font(size: 10))
                 Text("Skipped")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(AppTheme.font(size: 12, weight: .medium))
             }
         }
         .foregroundStyle(foregroundColor)
@@ -836,7 +930,7 @@ struct ExpandedQuestionContent: View {
                             if let tone = answer.toneAnalysis {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Speech Analysis")
-                                        .font(.system(size: 14, weight: .semibold))
+                                        .font(AppTheme.font(size: 14, weight: .semibold))
                                         .foregroundStyle(AppTheme.textPrimary)
                                     
                                     HStack(spacing: 16) {
@@ -867,20 +961,20 @@ struct ExpandedQuestionContent: View {
                                 if !suggestions.isEmpty {
                                     VStack(alignment: .leading, spacing: 8) {
                                         Text("Improvement Tips")
-                                            .font(.system(size: 14, weight: .semibold))
+                                            .font(AppTheme.font(size: 14, weight: .semibold))
                                             .foregroundStyle(AppTheme.textPrimary)
                                         
                                         ForEach(suggestions.prefix(3), id: \.title) { suggestion in
                                             HStack(alignment: .top, spacing: 8) {
                                                 Image(systemName: "lightbulb.fill")
-                                                    .font(.system(size: 12))
+                                                    .font(AppTheme.font(size: 12))
                                                     .foregroundStyle(Color.orange)
                                                 VStack(alignment: .leading, spacing: 2) {
                                                     Text(suggestion.title)
-                                                        .font(.system(size: 13, weight: .semibold))
+                                                        .font(AppTheme.font(size: 13, weight: .semibold))
                                                         .foregroundStyle(AppTheme.textPrimary)
                                                     Text(suggestion.description)
-                                                        .font(.system(size: 12))
+                                                        .font(AppTheme.font(size: 12))
                                                         .foregroundStyle(AppTheme.textSecondary)
                                                 }
                                             }
@@ -907,11 +1001,11 @@ struct ExpandedQuestionContent: View {
                transcription != "Analysis failed" {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Transcription")
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(AppTheme.font(size: 14, weight: .semibold))
                                 .foregroundStyle(AppTheme.textPrimary)
                             
                             Text(transcription)
-                                .font(.system(size: 14))
+                                .font(AppTheme.font(size: 14))
                                 .foregroundStyle(AppTheme.textSecondary)
                                 .lineSpacing(4)
                                 .padding(12)
@@ -924,11 +1018,11 @@ struct ExpandedQuestionContent: View {
                     if let feedback = question.answer?.evaluation?.feedback {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Feedback")
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(AppTheme.font(size: 14, weight: .semibold))
                                 .foregroundStyle(AppTheme.textPrimary)
                             
                             Text(feedback)
-                                .font(.system(size: 14))
+                                .font(AppTheme.font(size: 14))
                                 .foregroundStyle(AppTheme.textSecondary)
                                 .lineSpacing(4)
                         }
@@ -947,10 +1041,10 @@ struct SummaryStat: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .font(.system(size: 12))
+                .font(AppTheme.font(size: 12))
                 .foregroundStyle(AppTheme.textSecondary)
             Text(value)
-                .font(.system(size: 14, weight: .semibold))
+                .font(AppTheme.font(size: 14, weight: .semibold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)
@@ -971,10 +1065,10 @@ struct MetricBadge: View {
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.system(size: 10))
+                .font(AppTheme.font(size: 10))
                 .frame(width: 10, height: 10)
             Text(value)
-                .font(.system(size: 12, weight: .semibold))
+                .font(AppTheme.font(size: 12, weight: .semibold))
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
         }
@@ -995,13 +1089,13 @@ struct AnalyticItem: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .font(.system(size: 11))
+                .font(AppTheme.font(size: 11))
                 .foregroundStyle(AppTheme.textSecondary)
             Text(value)
-                .font(.system(size: 14, weight: .semibold))
+                .font(AppTheme.font(size: 14, weight: .semibold))
                 .foregroundStyle(AppTheme.textPrimary)
             Text(subtitle)
-                .font(.system(size: 10))
+                .font(AppTheme.font(size: 10))
                 .foregroundStyle(AppTheme.textSecondary.opacity(0.7))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1018,20 +1112,20 @@ struct AudioPlayerView: View {
                 audioPlayer.togglePlayPause()
             } label: {
                 Image(systemName: audioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 40))
+                    .font(AppTheme.font(size: 40))
                     .foregroundStyle(AppTheme.primary)
             }
             
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(formatTime(audioPlayer.currentTime))
-                        .font(.system(size: 12, weight: .medium))
+                        .font(AppTheme.font(size: 12, weight: .medium))
                         .foregroundStyle(AppTheme.textPrimary)
                     
                     Spacer()
                     
                     Text(formatTime(audioPlayer.duration))
-                        .font(.system(size: 12, weight: .medium))
+                        .font(AppTheme.font(size: 12, weight: .medium))
                         .foregroundStyle(AppTheme.textSecondary)
                 }
                 
@@ -1196,7 +1290,7 @@ struct ShareableResultCard: View {
                 
                 // App branding (text only)
                 Text("Final Round")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(AppTheme.font(size: 28, weight: .bold))
                     .foregroundStyle(.white)
                     .padding(.bottom, 40)
                 
@@ -1209,10 +1303,10 @@ struct ShareableResultCard: View {
                     
                     VStack(spacing: 4) {
                         Text(session.overallGrade)
-                            .font(.system(size: 64, weight: .bold, design: .rounded))
+                            .font(AppTheme.font(size: 64, weight: .bold))
                             .foregroundStyle(.white)
                         Text("\(Int(session.averageScore))%")
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(AppTheme.font(size: 22, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.9))
                     }
                 }
@@ -1220,14 +1314,14 @@ struct ShareableResultCard: View {
                 
                 // Role
                 Text(session.role)
-                    .font(.system(size: 26, weight: .bold))
+                    .font(AppTheme.font(size: 26, weight: .bold))
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
                     .padding(.bottom, 8)
                 
                 Text("Interview Practice")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(AppTheme.font(size: 16, weight: .medium))
                     .foregroundStyle(.white.opacity(0.6))
                     .padding(.bottom, 40)
                 
@@ -1271,11 +1365,11 @@ struct ShareableResultCard: View {
                 // Date and watermark
                 VStack(spacing: 8) {
                     Text(formattedDate)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(AppTheme.font(size: 14, weight: .medium))
                         .foregroundStyle(.white.opacity(0.5))
                     
                     Text("finalround.app")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(AppTheme.font(size: 12, weight: .medium))
                         .foregroundStyle(.white.opacity(0.3))
                 }
                 .padding(.bottom, 40)
@@ -1293,15 +1387,15 @@ struct ShareStatBox: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 20))
+                .font(AppTheme.font(size: 20))
                 .foregroundStyle(.white.opacity(0.7))
             
             Text(value)
-                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .font(AppTheme.font(size: 22, weight: .bold))
                 .foregroundStyle(.white)
             
             Text(label)
-                .font(.system(size: 12, weight: .medium))
+                .font(AppTheme.font(size: 12, weight: .medium))
                 .foregroundStyle(.white.opacity(0.5))
         }
         .frame(maxWidth: .infinity)
@@ -1390,11 +1484,11 @@ struct SharePreviewView: View {
                             } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: includeImage ? "checkmark.square.fill" : "square")
-                                        .font(.system(size: 22))
+                                        .font(AppTheme.font(size: 22))
                                         .foregroundStyle(includeImage ? AppTheme.primary : AppTheme.textSecondary)
                                     
                                     Text("Include Image")
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(AppTheme.font(size: 16, weight: .semibold))
                                         .foregroundStyle(AppTheme.textPrimary)
                                 }
                             }
@@ -1424,7 +1518,7 @@ struct SharePreviewView: View {
                                     VStack(spacing: 12) {
                                         ProgressView()
                                         Text("Generating preview...")
-                                            .font(.system(size: 13))
+                                            .font(AppTheme.font(size: 13))
                                             .foregroundStyle(AppTheme.textSecondary)
                                     }
                                 )
@@ -1442,11 +1536,11 @@ struct SharePreviewView: View {
                             } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: includeText ? "checkmark.square.fill" : "square")
-                                        .font(.system(size: 22))
+                                        .font(AppTheme.font(size: 22))
                                         .foregroundStyle(includeText ? AppTheme.primary : AppTheme.textSecondary)
                                     
                                     Text("Include Text")
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(AppTheme.font(size: 16, weight: .semibold))
                                         .foregroundStyle(AppTheme.textPrimary)
                                 }
                             }
@@ -1457,7 +1551,7 @@ struct SharePreviewView: View {
                         
                         // Text preview
                         Text(shareText)
-                            .font(.system(size: 14))
+                            .font(AppTheme.font(size: 14))
                             .foregroundStyle(includeText ? AppTheme.textPrimary : AppTheme.textSecondary)
                             .padding(16)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1487,7 +1581,7 @@ struct SharePreviewView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(AppTheme.font(size: 14, weight: .semibold))
                             .padding(10)
                             .background(AppTheme.controlBackground)
                             .clipShape(Circle())

@@ -25,6 +25,58 @@ enum AppTheme {
     static let softAccent = lightGreen
     static let controlBackground = cardBackground
     static let separator = border
+    
+    // MARK: - Typography (Nohemi Font Family)
+    
+    /// Font family name prefix
+    private static let fontFamily = "Nohemi"
+    
+    /// Maps Font.Weight to the appropriate Nohemi font variant
+    private static func fontName(for weight: Font.Weight) -> String {
+        switch weight {
+        case .ultraLight, .thin:
+            return "\(fontFamily)-Thin"
+        case .light:
+            return "\(fontFamily)-Light"
+        case .regular:
+            return "\(fontFamily)-Regular"
+        case .medium:
+            return "\(fontFamily)-Medium"
+        case .semibold:
+            return "\(fontFamily)-SemiBold"
+        case .bold:
+            return "\(fontFamily)-Bold"
+        case .heavy:
+            return "\(fontFamily)-ExtraBold"
+        case .black:
+            return "\(fontFamily)-Black"
+        default:
+            return "\(fontFamily)-Regular"
+        }
+    }
+    
+    /// Creates a Nohemi font with the specified size (regular weight)
+    static func font(size: CGFloat) -> Font {
+        .custom(fontName(for: .regular), size: size)
+    }
+    
+    /// Creates a Nohemi font with size and weight
+    static func font(size: CGFloat, weight: Font.Weight) -> Font {
+        .custom(fontName(for: weight), size: size)
+    }
+    
+    // MARK: - Semantic Font Styles
+    static let largeTitle = Font.custom(fontName(for: .bold), size: 34)
+    static let title = Font.custom(fontName(for: .bold), size: 28)
+    static let title2 = Font.custom(fontName(for: .semibold), size: 24)
+    static let title3 = Font.custom(fontName(for: .semibold), size: 20)
+    static let headline = Font.custom(fontName(for: .semibold), size: 18)
+    static let body = Font.custom(fontName(for: .regular), size: 16)
+    static let callout = Font.custom(fontName(for: .regular), size: 15)
+    static let subheadline = Font.custom(fontName(for: .regular), size: 14)
+    static let footnote = Font.custom(fontName(for: .regular), size: 13)
+    static let caption = Font.custom(fontName(for: .regular), size: 12)
+    static let caption2 = Font.custom(fontName(for: .regular), size: 10)
 }
 
 // MARK: - Color Extension
@@ -78,7 +130,7 @@ extension View {
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .semibold))
+            .font(AppTheme.font(size: 16, weight: .semibold))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .foregroundStyle(Color.white)
@@ -96,7 +148,7 @@ struct PrimaryButtonStyle: ButtonStyle {
 struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .semibold))
+            .font(AppTheme.font(size: 16, weight: .semibold))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .foregroundStyle(AppTheme.primary)

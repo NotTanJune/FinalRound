@@ -9,6 +9,7 @@ struct FinalRoundApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(appState)
+                .environmentObject(appState.tutorialManager)
                 .preferredColorScheme(.light)
         }
     }
@@ -41,6 +42,9 @@ class AppState: ObservableObject {
     // Transition state for smooth navigation from session summary
     @Published var isNavigatingFromSession = false
     @Published var sessionJustSaved = false
+    
+    // Tutorial Manager
+    let tutorialManager = TutorialManager()
     
     // Preloaded data
     @Published var preloadedProfile: UserProfile?

@@ -1,6 +1,6 @@
 import SwiftUI
-import PhotosUI
 import Combine
+import CoreLocation
 
 @MainActor
 class ProfileSetupViewModel: ObservableObject {
@@ -24,7 +24,6 @@ class ProfileSetupViewModel: ObservableObject {
     @Published var isLoadingLocation = false
     
     // Photo Step
-    @Published var selectedPhotoItem: PhotosPickerItem?
     @Published var profileImage: UIImage?
     @Published var isLoadingPhoto = false
     @Published var photoLoadError: String?
@@ -398,76 +397,12 @@ class ProfileSetupViewModel: ObservableObject {
     
     // MARK: - Photo Handling
     
-    func loadPhoto() async {
-        guard let item = selectedPhotoItem else { return }
-        
-        await MainActor.run {
-            self.isLoadingPhoto = true
-            self.photoLoadError = nil
-        }
-        
-        // Create a task with timeout for iCloud-offloaded images
-        let loadTask = Task { () -> UIImage? in
-            do {
-                guard let data = try await item.loadTransferable(type: Data.self),
-                      let image = UIImage(data: data) else {
-                    return nil
-                }
-                return image
-            } catch {
-                SecureLogger.error("Failed to load image: \(error)", category: .general)
-                return nil
-            }
-        }
-        
-        // Timeout task - 30 seconds for iCloud downloads
-        let timeoutTask = Task {
-            try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 seconds
-            return nil as UIImage?
-        }
-        
-        // Race between load and timeout
-        let result: UIImage? = await withTaskGroup(of: UIImage?.self) { group in
-            group.addTask { await loadTask.value }
-            group.addTask { await timeoutTask.value }
-            
-            // Return first non-nil result, or nil if timeout wins
-            for await result in group {
-                if result != nil {
-                    // Cancel the other task
-                    group.cancelAll()
-                    return result
-                }
-            }
-            return nil
-        }
-        
-        // Cancel any remaining tasks
-        loadTask.cancel()
-        timeoutTask.cancel()
-        
-        await MainActor.run {
-            self.isLoadingPhoto = false
-            
-            if let image = result {
-                // Security: Validate image size
-                if let jpegData = image.jpegData(compressionQuality: 0.7),
-                   jpegData.count > 5 * 1024 * 1024 {
-                    self.photoLoadError = "Image is too large. Please select a smaller image."
-                    return
-                }
-                self.profileImage = image
-            } else {
-                self.photoLoadError = "Failed to load image. It may be stored in iCloud. Please try again or select a different photo."
-            }
-        }
-        
-        // After iCloud download completes, warm up connection for upcoming upload
-        // This runs in background while user reviews the photo
-        if result != nil {
+    /// Called when profileImage changes to warm up connection for upload
+    func onPhotoSelected() {
+        guard profileImage != nil else { return }
+        // Warm up connection for upcoming upload
             Task {
                 await SupabaseService.shared.aggressiveWarmUp()
-            }
         }
     }
     

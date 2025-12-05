@@ -92,7 +92,7 @@ struct InterviewSetupView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(AppTheme.font(size: 15, weight: .semibold))
                             .padding(10)
                             .background(
                                 Circle()
@@ -263,7 +263,7 @@ struct InterviewSetupView: View {
         VStack(alignment: .leading, spacing: 12) {
             sectionTitle("Interview Role")
             TextField("e.g. Software Engineer, Product Manager", text: $roleTitle)
-                .font(.system(size: 14))
+                .font(AppTheme.font(size: 14))
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled(true)
                 .focused($isRoleFocused)
@@ -324,7 +324,7 @@ struct InterviewSetupView: View {
             VStack(alignment: .leading, spacing: 4) {
                 sectionTitle("Your Experience Level")
                 Text("Grading adjusts based on your level")
-                    .font(.system(size: 13))
+                    .font(AppTheme.font(size: 13))
                     .foregroundStyle(AppTheme.textSecondary)
             }
             
@@ -351,16 +351,16 @@ struct InterviewSetupView: View {
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: enableAudioRecording ? "checkmark.square.fill" : "square")
-                        .font(.system(size: 24))
+                        .font(AppTheme.font(size: 24))
                         .foregroundStyle(enableAudioRecording ? AppTheme.primary : AppTheme.textSecondary)
                     
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Enable audio recording")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(AppTheme.font(size: 16, weight: .medium))
                             .foregroundStyle(AppTheme.textPrimary)
                         
                         Text("Record your responses for AI-powered transcription and feedback")
-                            .font(.system(size: 13))
+                            .font(AppTheme.font(size: 13))
                             .foregroundStyle(AppTheme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -387,7 +387,7 @@ struct InterviewSetupView: View {
     
     private func sectionTitle(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 17, weight: .semibold))
+            .font(AppTheme.font(size: 17, weight: .semibold))
     }
     
     private func statHeader(title: String, value: String) -> some View {
@@ -395,7 +395,7 @@ struct InterviewSetupView: View {
             sectionTitle(title)
             Spacer()
             Text(value)
-                .font(.system(size: 17, weight: .bold))
+                .font(AppTheme.font(size: 17, weight: .bold))
                 .foregroundStyle(AppTheme.accent)
         }
     }
@@ -473,9 +473,9 @@ struct CategoryButton: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 Image(systemName: iconForCategory(category))
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(AppTheme.font(size: 24, weight: .semibold))
                 Text(category.rawValue)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(AppTheme.font(size: 14, weight: .semibold))
             }
             .frame(maxWidth: .infinity)
             .frame(minHeight: 92)
@@ -510,7 +510,7 @@ struct DifficultyButton: View {
     var body: some View {
         Button(action: action) {
             Text(difficulty.rawValue)
-                .font(.system(size: 15, weight: .semibold))
+                .font(AppTheme.font(size: 15, weight: .semibold))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
                 .foregroundStyle(isSelected ? .white : AppTheme.accent)
@@ -545,9 +545,9 @@ struct ExperienceLevelButton: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: iconName)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(AppTheme.font(size: 14, weight: .semibold))
                 Text(level.rawValue)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(AppTheme.font(size: 14, weight: .semibold))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
@@ -571,10 +571,10 @@ struct ScrollIndicator: View {
     var body: some View {
         HStack(spacing: 6) {
             Text("More")
-                .font(.system(size: 13, weight: .medium))
+                .font(AppTheme.font(size: 13, weight: .medium))
             
             Image(systemName: "chevron.down")
-                .font(.system(size: 11, weight: .bold))
+                .font(AppTheme.font(size: 11, weight: .bold))
                 .offset(y: isAnimating ? 2 : -2)
         }
         .foregroundStyle(AppTheme.primary)

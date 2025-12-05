@@ -4,6 +4,7 @@ import Combine
 
 struct InterviewSessionView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var tutorialManager: TutorialManager
     @Environment(\.dismiss) var dismiss
     @State private var session: InterviewSession
     @State private var hasStarted = false
@@ -27,6 +28,8 @@ struct InterviewSessionView: View {
     @State private var pausedTimeDisplay: String?
     @State private var pendingAnswers: [PendingAnswer] = []
     
+    // Tutorial state - uses @EnvironmentObject for proper observation
+    
     private let accent = AppTheme.accent
     
     init(session: InterviewSession) {
@@ -39,6 +42,12 @@ struct InterviewSessionView: View {
     }
     
     var body: some View {
+        TutorialWrapper(tutorialType: .interviewSession) {
+            sessionContent
+        }
+    }
+    
+    private var sessionContent: some View {
         ZStack {
             AppTheme.background
                 .ignoresSafeArea()
@@ -50,7 +59,7 @@ struct InterviewSessionView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "arrow.left")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(AppTheme.font(size: 16, weight: .semibold))
                             .foregroundStyle(AppTheme.textPrimary)
                             .padding(12)
                             .background(AppTheme.cardBackground)
@@ -60,7 +69,7 @@ struct InterviewSessionView: View {
                     Spacer()
                     
                     Text("Interview")
-                        .font(.system(size: 18, weight: .bold))
+                        .font(AppTheme.font(size: 18, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                     
                     Spacer()
@@ -71,14 +80,14 @@ struct InterviewSessionView: View {
                             if isEndingSession, let pausedTime = pausedTimeDisplay {
                                 // Show paused time when ending session
                                 Text(pausedTime)
-                                    .font(.system(size: 14, weight: .medium))
+                                    .font(AppTheme.font(size: 14, weight: .medium))
                                     .monospacedDigit()
                                     .foregroundStyle(AppTheme.textSecondary)
                             } else {
                                 // Live updating timer
                                 TimelineView(.periodic(from: Date(), by: 1.0)) { _ in
                                     Text(timeElapsed())
-                                        .font(.system(size: 14, weight: .medium))
+                                        .font(AppTheme.font(size: 14, weight: .medium))
                                         .monospacedDigit()
                                 }
                             }
@@ -88,6 +97,7 @@ struct InterviewSessionView: View {
                         .background(isEndingSession ? AppTheme.cardBackground.opacity(0.6) : AppTheme.cardBackground)
                         .cornerRadius(20)
                         .animation(.easeInOut(duration: 0.2), value: isEndingSession)
+                        .tutorialHighlight("session-timer")
                     }
                 }
                 .padding(.horizontal, 20)
@@ -105,10 +115,10 @@ struct InterviewSessionView: View {
                         if !cameraManager.isAuthorized {
                             VStack(spacing: 12) {
                                 Image(systemName: "video.slash.fill")
-                                    .font(.system(size: 48))
+                                    .font(AppTheme.font(size: 48))
                                     .foregroundColor(.white.opacity(0.6))
                                 Text("Camera Access Required")
-                                    .font(.system(size: 16, weight: .medium))
+                                    .font(AppTheme.font(size: 16, weight: .medium))
                                     .foregroundColor(.white.opacity(0.8))
                             }
                         }
@@ -120,7 +130,7 @@ struct InterviewSessionView: View {
                             // Audio Indicator
                             if audioManager.isRecording {
                                 Image(systemName: "waveform")
-                                    .font(.system(size: 20))
+                                    .font(AppTheme.font(size: 20))
                                     .foregroundStyle(.white)
                                     .padding(12)
                                     .background(AppTheme.primary)
@@ -132,10 +142,10 @@ struct InterviewSessionView: View {
                             if eyeContactAnalyzer.isTracking {
                                 HStack(spacing: 6) {
                                     Image(systemName: eyeContactAnalyzer.isLookingAtCamera ? "eye.fill" : "eye.slash.fill")
-                                        .font(.system(size: 16))
+                                        .font(AppTheme.font(size: 16))
                                         .foregroundStyle(.white)
                                     Text("\(Int(eyeContactAnalyzer.currentEyeContactPercentage))%")
-                                        .font(.system(size: 14, weight: .semibold))
+                                        .font(AppTheme.font(size: 14, weight: .semibold))
                                         .foregroundStyle(.white)
                                 }
                                 .padding(.horizontal, 12)
@@ -151,23 +161,19 @@ struct InterviewSessionView: View {
                         // Question Text Overlay
                         if hasStarted {
                             if let question = currentQuestion {
-                                VStack(spacing: 12) {
-                                    ScrollView(.vertical, showsIndicators: false) {
                                         Text(question.text)
-                                            .font(.system(size: 14, weight: .medium))
+                                    .font(AppTheme.font(size: 14, weight: .medium))
                                             .foregroundStyle(AppTheme.textPrimary)
                                             .multilineTextAlignment(.center)
-                                            .fixedSize(horizontal: false, vertical: true)
+                                    .lineLimit(3)
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 12)
-                                    }
-                                    .frame(maxHeight: 100) // Allow scrolling for long questions
                                     .frame(maxWidth: .infinity)
-                                    .background(AppTheme.cardBackground.opacity(0.92))
-                                    .cornerRadius(16)
-                                    .padding(.horizontal, 24)
-                                }
-                                .padding(.bottom, 20)
+                                    .background(AppTheme.cardBackground.opacity(0.95))
+                                    .cornerRadius(12)
+                                    .tutorialHighlight("session-question")
+                                    .padding(.horizontal, 20)
+                                    .padding(.bottom, 16)
                             }
                         } else {
                             // Start Button Overlay
@@ -175,7 +181,7 @@ struct InterviewSessionView: View {
                                 startSession()
                             } label: {
                                 Text("Start")
-                                    .font(.system(size: 18, weight: .bold))
+                                    .font(AppTheme.font(size: 18, weight: .bold))
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, 40)
                                     .padding(.vertical, 16)
@@ -195,6 +201,7 @@ struct InterviewSessionView: View {
                 .padding(.horizontal, 20)
                 
                 // Controls Below Camera
+                VStack(spacing: 16) {
                 if hasStarted {
                     let isButtonsDisabled = isEndingSession || isTransitioning
                     
@@ -203,7 +210,7 @@ struct InterviewSessionView: View {
                             skipQuestion()
                         } label: {
                             Text("Skip")
-                                .font(.system(size: 16, weight: .semibold))
+                                    .font(AppTheme.font(size: 16, weight: .semibold))
                                 .foregroundStyle(isButtonsDisabled ? AppTheme.textSecondary : AppTheme.textPrimary)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
@@ -224,7 +231,7 @@ struct InterviewSessionView: View {
                                 }
                                 Text(currentQuestionIndex < session.questions.count - 1 ? "Next" : "Finish")
                             }
-                            .font(.system(size: 16, weight: .semibold))
+                                .font(AppTheme.font(size: 16, weight: .semibold))
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
@@ -250,7 +257,7 @@ struct InterviewSessionView: View {
                             .clipShape(Circle())
                     } else {
                         Image(systemName: "phone.down.fill")
-                            .font(.system(size: 20))
+                                .font(AppTheme.font(size: 20))
                             .foregroundStyle(.white)
                             .frame(width: 56, height: 56)
                             .background(isTransitioning ? AppTheme.softRed.opacity(0.5) : AppTheme.softRed)
@@ -258,7 +265,9 @@ struct InterviewSessionView: View {
                     }
                 }
                 .disabled(isEndingSession || isTransitioning)
+                }
                 .padding(.bottom, 20)
+                .tutorialHighlight("session-controls")
             }
         }
         .onAppear { cameraManager.start() }
@@ -304,6 +313,11 @@ struct InterviewSessionView: View {
         if session.enableAudioRecording, let question = currentQuestion {
             currentRecordingURL = audioManager.startRecording(for: question.id)
         }
+        
+        // Start session tutorial if not seen yet (with slight delay for UI to settle)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            tutorialManager.startSessionTutorialIfNeeded()
+        }
     }
 
 struct ControlCircleButton: View {
@@ -315,7 +329,7 @@ struct ControlCircleButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 20))
+                .font(AppTheme.font(size: 20))
                 .foregroundStyle(iconColor)
                 .frame(width: 56, height: 56)
                 .background(color)

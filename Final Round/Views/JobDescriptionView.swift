@@ -15,7 +15,7 @@ struct JobDescriptionView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 16) {
                             Image(systemName: job.logoName)
-                                .font(.system(size: 32))
+                                .font(AppTheme.font(size: 32))
                                 .foregroundStyle(AppTheme.textPrimary)
                                 .frame(width: 64, height: 64)
                                 .background(AppTheme.cardBackground)
@@ -24,7 +24,7 @@ struct JobDescriptionView: View {
                             
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(job.role)
-                                    .font(.system(size: 22, weight: .bold))
+                                    .font(AppTheme.font(size: 22, weight: .bold))
                                     .foregroundStyle(AppTheme.textPrimary)
                                 
                                 HStack(spacing: 6) {
@@ -35,7 +35,7 @@ struct JobDescriptionView: View {
                                     Text("•")
                                     Text(job.location)
                                 }
-                                .font(.system(size: 14))
+                                .font(AppTheme.font(size: 14))
                                 .foregroundStyle(AppTheme.textSecondary)
                             }
                         }
@@ -43,7 +43,7 @@ struct JobDescriptionView: View {
                         FlowLayout(spacing: 8) {
                             ForEach(job.tags, id: \.self) { tag in
                                 Text(tag)
-                                    .font(.system(size: 12, weight: .semibold))
+                                    .font(AppTheme.font(size: 12, weight: .semibold))
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
                                     .background(tagColor(for: tag))
@@ -70,16 +70,16 @@ struct JobDescriptionView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         if selectedTab == 0 {
                             Text("Description")
-                                .font(.system(size: 18, weight: .bold))
+                                .font(AppTheme.font(size: 18, weight: .bold))
                                 .foregroundStyle(AppTheme.textPrimary)
                             
                             Text(job.description ?? "Are you a passionate UI/UX Designer looking to join a global tech leader? We're at the forefront of innovation, shaping the future of communication and technology. If you're a creative thinker, adept at crafting seamless user experiences, we want you on our team!")
-                                .font(.system(size: 15))
+                                .font(AppTheme.font(size: 15))
                                 .foregroundStyle(AppTheme.textSecondary)
                                 .lineSpacing(4)
                             
                             Text("Responsibilities")
-                                .font(.system(size: 18, weight: .bold))
+                                .font(AppTheme.font(size: 18, weight: .bold))
                                 .foregroundStyle(AppTheme.textPrimary)
                                 .padding(.top, 8)
                             
@@ -96,7 +96,7 @@ struct JobDescriptionView: View {
                             }
                         } else {
                             Text("About \(job.company)")
-                                .font(.system(size: 18, weight: .bold))
+                                .font(AppTheme.font(size: 18, weight: .bold))
                                 .foregroundStyle(AppTheme.textPrimary)
                             
                             if isLoadingCompanyInfo {
@@ -104,19 +104,19 @@ struct JobDescriptionView: View {
                                     ProgressView()
                                         .tint(AppTheme.primary)
                                     Text("Loading company information...")
-                                        .font(.system(size: 14))
+                                        .font(AppTheme.font(size: 14))
                                         .foregroundStyle(AppTheme.textSecondary)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 40)
                             } else if let info = companyInfo {
                                 Text(info)
-                                    .font(.system(size: 15))
+                                    .font(AppTheme.font(size: 15))
                                     .foregroundStyle(AppTheme.textSecondary)
                                     .lineSpacing(4)
                             } else {
                                 Text("Unable to load company information at this time.")
-                                    .font(.system(size: 15))
+                                    .font(AppTheme.font(size: 15))
                                     .foregroundStyle(AppTheme.textSecondary)
                                     .lineSpacing(4)
                             }
@@ -209,7 +209,7 @@ struct TabButton: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 Text(title)
-                    .font(.system(size: 15, weight: isSelected ? .semibold : .medium))
+                    .font(AppTheme.font(size: 15, weight: isSelected ? .semibold : .medium))
                     .foregroundStyle(isSelected ? AppTheme.textPrimary : AppTheme.textSecondary)
                 
                 Rectangle()
@@ -228,7 +228,7 @@ struct ResponsibilityRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Text(number)
-                .font(.system(size: 12, weight: .bold))
+                .font(AppTheme.font(size: 12, weight: .bold))
                 .foregroundStyle(AppTheme.textSecondary)
                 .frame(width: 24, height: 24)
                 .background(AppTheme.background)
@@ -239,7 +239,7 @@ struct ResponsibilityRow: View {
                 )
             
             Text(text)
-                .font(.system(size: 14))
+                .font(AppTheme.font(size: 14))
                 .foregroundStyle(AppTheme.textSecondary)
                 .lineSpacing(4)
         }

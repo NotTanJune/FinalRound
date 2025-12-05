@@ -809,7 +809,7 @@ class SupabaseService: ObservableObject {
         }
         
         let fileName = "\(userId.uuidString).jpg"
-        let filePath = "avatars/\(fileName)"
+        let filePath = fileName  // Just the filename - bucket is already "avatars"
         
         SecureLogger.debug("Uploading avatar (\(finalData.count / 1024)KB)", category: .database)
         
@@ -850,7 +850,7 @@ class SupabaseService: ObservableObject {
     func deleteAvatar() async throws {
         guard let userId = currentUser?.id else { return }
         
-        let filePath = "avatars/\(userId.uuidString).jpg"
+        let filePath = "\(userId.uuidString).jpg"  // Just the filename - bucket is already "avatars"
         
         // Use direct HTTP delete to avoid QUIC connection issues
         // The SDK's storage client uses QUIC which times out on stale connections

@@ -42,7 +42,7 @@ struct OnboardingView: View {
                             completeOnboarding()
                         } label: {
                             Text("Skip")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(AppTheme.font(size: 16, weight: .semibold))
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
@@ -120,19 +120,19 @@ struct OnboardingPageView: View {
     var body: some View {
         VStack(spacing: 32) {
             Image(systemName: page.icon)
-                .font(.system(size: 100))
+                .font(AppTheme.font(size: 100))
                 .foregroundStyle(AppTheme.accent)
                 .symbolRenderingMode(.hierarchical)
                 .shadow(color: .black.opacity(0.1), radius: 12, x: 0, y: 6)
             
             VStack(spacing: 16) {
                 Text(page.title)
-                    .font(.system(size: 32, weight: .bold))
+                    .font(AppTheme.font(size: 32, weight: .bold))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 
                 Text(page.description)
-                    .font(.system(size: 16))
+                    .font(AppTheme.font(size: 16))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
