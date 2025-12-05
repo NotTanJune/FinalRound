@@ -48,7 +48,7 @@ struct WelcomeView: View {
                 .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
             
             Text("Final Round")
-                .font(.system(size: 30, weight: .bold))
+                .font(AppTheme.font(size: 30, weight: .bold))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }

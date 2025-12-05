@@ -82,6 +82,7 @@ struct AnimatedTabContent<Content: View>: View {
 
 struct HomeView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var tutorialManager: TutorialManager
     @StateObject private var supabase = SupabaseService.shared
     @State private var showingInterviewSetup = false
     @State private var showingRecommendedJobs = false
@@ -109,6 +110,12 @@ struct HomeView: View {
     }
     
     var body: some View {
+        TutorialWrapper(tutorialType: .home) {
+            homeContent
+        }
+    }
+    
+    private var homeContent: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 ScrollView {
@@ -132,17 +139,17 @@ struct HomeView: View {
                                         .frame(width: 48, height: 48)
                                         .overlay(
                                             Text(String(firstName.prefix(1)))
-                                                .font(.system(size: 20, weight: .semibold))
+                                                .font(AppTheme.font(size: 20, weight: .semibold))
                                                 .foregroundStyle(AppTheme.primary)
                                         )
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Hello, \(firstName)")
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(AppTheme.font(size: 16, weight: .semibold))
                                         .foregroundStyle(AppTheme.textPrimary)
                                     Text("Ready to prep?")
-                                        .font(.system(size: 14))
+                                        .font(AppTheme.font(size: 14))
                                         .foregroundStyle(AppTheme.textSecondary)
                                 }
                             }
@@ -153,11 +160,11 @@ struct HomeView: View {
                         // Simplified Hero Card
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Start Preparation")
-                                .font(.system(size: 20, weight: .bold))
+                                .font(AppTheme.font(size: 20, weight: .bold))
                                 .foregroundStyle(.white)
                             
                             Text("Browse jobs below or generate a custom interview prep.")
-                                .font(.system(size: 15))
+                                .font(AppTheme.font(size: 15))
                                 .foregroundStyle(.white.opacity(0.9))
                                 .lineSpacing(4)
                             
@@ -169,7 +176,7 @@ struct HomeView: View {
                                         Image(systemName: "list.bullet")
                                         Text("Browse Jobs")
                                     }
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .font(AppTheme.font(size: 14, weight: .semibold))
                                     .foregroundStyle(AppTheme.primary)
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 10)
@@ -184,13 +191,14 @@ struct HomeView: View {
                                         Image(systemName: "wand.and.stars")
                                         Text("Generate")
                                     }
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .font(AppTheme.font(size: 14, weight: .semibold))
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 10)
                                     .background(Color.white.opacity(0.2))
                                     .cornerRadius(20)
                                 }
+                                .tutorialHighlight("home-generate-button")
                             }
                         }
                         .padding(24)
@@ -204,7 +212,7 @@ struct HomeView: View {
                         // Job URL Generator Section
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Generate from Job URL")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(AppTheme.font(size: 16, weight: .semibold))
                                 .foregroundStyle(AppTheme.textPrimary)
                             
                             HStack(spacing: 12) {
@@ -230,7 +238,7 @@ struct HomeView: View {
                                             Text("Generate")
                                         }
                                     }
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .font(AppTheme.font(size: 14, weight: .semibold))
                                     .foregroundStyle(.white)
                                     .frame(width: isParsingURL ? 80 : nil)
                                     .padding(.horizontal, isParsingURL ? 12 : 20)
@@ -247,12 +255,13 @@ struct HomeView: View {
                         .background(Color.white)
                         .cornerRadius(16)
                         .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
+                        .tutorialHighlight("home-job-url-section")
                         
                         // Recommended Jobs
                         VStack(alignment: .leading, spacing: 16) {
                             HStack {
                                 Text("Recommended Jobs")
-                                    .font(.system(size: 18, weight: .bold))
+                                    .font(AppTheme.font(size: 18, weight: .bold))
                                     .foregroundStyle(AppTheme.textPrimary)
                                 
                                 Spacer()
@@ -261,7 +270,7 @@ struct HomeView: View {
                                     showingRecommendedJobs = true
                                 } label: {
                                     Text("See All")
-                                        .font(.system(size: 14, weight: .medium))
+                                        .font(AppTheme.font(size: 14, weight: .medium))
                                         .foregroundStyle(AppTheme.primary)
                                 }
                             }
@@ -273,10 +282,10 @@ struct HomeView: View {
                             } else if recommendedJobs.isEmpty {
                                 VStack(spacing: 12) {
                                     Image(systemName: "briefcase")
-                                        .font(.system(size: 40))
+                                        .font(AppTheme.font(size: 40))
                                         .foregroundStyle(AppTheme.textSecondary)
                                     Text("No jobs found")
-                                        .font(.system(size: 14))
+                                        .font(AppTheme.font(size: 14))
                                         .foregroundStyle(AppTheme.textSecondary)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -292,6 +301,7 @@ struct HomeView: View {
                                 }
                             }
                         }
+                        .tutorialHighlight("home-recommended-section")
                     }
                     .padding(20)
                 }
@@ -333,6 +343,11 @@ struct HomeView: View {
                     if !appState.preloadedRecommendedJobs.isEmpty {
                         recommendedJobs = appState.preloadedRecommendedJobs
                     }
+                }
+                
+                // Start home tutorial if not seen yet (with slight delay for better UX)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    tutorialManager.startHomeTutorialIfNeeded()
                 }
             }
         }
@@ -585,14 +600,14 @@ struct StepView: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 20))
+                .font(AppTheme.font(size: 20))
                 .foregroundStyle(AppTheme.primary)
                 .frame(width: 44, height: 44)
                 .background(AppTheme.lightGreen)
                 .clipShape(Circle())
             
             Text(text)
-                .font(.system(size: 10))
+                .font(AppTheme.font(size: 10))
                 .foregroundStyle(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)

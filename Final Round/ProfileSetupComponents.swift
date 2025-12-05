@@ -20,7 +20,7 @@ struct SkillTag: View {
     var body: some View {
         Button(action: action) {
             Text(text)
-                .font(.system(size: 13, weight: .medium))
+                .font(AppTheme.font(size: 13, weight: .medium))
                 .foregroundStyle(isSelected ? .white : AppTheme.textPrimary)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
@@ -52,12 +52,12 @@ struct ExperienceLevelSelector: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Experience Level")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(AppTheme.font(size: 14, weight: .medium))
                     .foregroundStyle(AppTheme.textSecondary)
                 
                 if selectedLevel == nil {
                     Text("(Required)")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(AppTheme.font(size: 12, weight: .medium))
                         .foregroundStyle(AppTheme.softRed.opacity(0.8))
                 }
             }
@@ -72,18 +72,18 @@ struct ExperienceLevelSelector: View {
                     } label: {
                         HStack {
                             Text(level.rawValue)
-                                .font(.system(size: 15, weight: .medium))
+                                .font(AppTheme.font(size: 15, weight: .medium))
                                 .foregroundStyle(selectedLevel == level ? .white : AppTheme.textPrimary)
                             
                             Spacer()
                             
                             if selectedLevel == level {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 20))
+                                    .font(AppTheme.font(size: 20))
                                     .foregroundStyle(.white)
                             } else {
                                 Image(systemName: "circle")
-                                    .font(.system(size: 20))
+                                    .font(AppTheme.font(size: 20))
                                     .foregroundStyle(AppTheme.textSecondary.opacity(0.3))
                             }
                         }
@@ -125,18 +125,18 @@ struct StepProgressIndicator: View {
 
 // MARK: - Profile Photo Picker
 struct ProfilePhotoPicker: View {
-    @Binding var selectedItem: PhotosPickerItem?
-    let image: UIImage?
+    @Binding var selectedImage: UIImage?
     let initials: String
+    var onTap: () -> Void
     
     var body: some View {
-        PhotosPicker(selection: $selectedItem, matching: .images) {
+        Button(action: onTap) {
             ZStack {
                 Circle()
                     .fill(AppTheme.lightGreen)
                     .frame(width: 140, height: 140)
                 
-                if let image = image {
+                if let image = selectedImage {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
@@ -150,17 +150,17 @@ struct ProfilePhotoPicker: View {
                 } else {
                     VStack(spacing: 8) {
                         Text(initials)
-                            .font(.system(size: 36, weight: .semibold))
+                            .font(AppTheme.font(size: 36, weight: .semibold))
                             .foregroundStyle(AppTheme.primary)
                         
                         Image(systemName: "camera.fill")
-                            .font(.system(size: 20))
+                            .font(AppTheme.font(size: 20))
                             .foregroundStyle(AppTheme.textSecondary)
                     }
                 }
             }
-            .scaleEffect(selectedItem != nil ? 1.05 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selectedItem)
+            .scaleEffect(selectedImage != nil ? 1.05 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selectedImage != nil)
         }
         .buttonStyle(PlainButtonStyle())
     }

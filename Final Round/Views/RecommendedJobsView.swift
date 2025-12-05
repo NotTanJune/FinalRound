@@ -22,12 +22,12 @@ struct RecommendedJobsView: View {
                 // Header
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Recommended for You")
-                        .font(.system(size: 28, weight: .bold))
+                        .font(AppTheme.font(size: 28, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                     
                     if let profile = userProfile {
                         Text("Based on your profile as \(profile.targetRole.isEmpty ? "Professional" : profile.targetRole)")
-                            .font(.system(size: 15))
+                            .font(AppTheme.font(size: 15))
                             .foregroundStyle(AppTheme.textSecondary)
                     }
                 }
@@ -73,15 +73,15 @@ struct RecommendedJobsView: View {
                         } else if filteredJobs.isEmpty {
                             VStack(spacing: 16) {
                                 Image(systemName: "briefcase.circle")
-                                    .font(.system(size: 64))
+                                    .font(AppTheme.font(size: 64))
                                     .foregroundStyle(AppTheme.textSecondary.opacity(0.5))
                                 
                                 Text("No matching jobs found")
-                                    .font(.system(size: 16, weight: .medium))
+                                    .font(AppTheme.font(size: 16, weight: .medium))
                                     .foregroundStyle(AppTheme.textSecondary)
                                 
                                 Text("Try adjusting your filters or update your profile")
-                                    .font(.system(size: 14))
+                                    .font(AppTheme.font(size: 14))
                                     .foregroundStyle(AppTheme.textSecondary)
                                     .multilineTextAlignment(.center)
                             }
@@ -108,7 +108,7 @@ struct RecommendedJobsView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(AppTheme.font(size: 16, weight: .semibold))
                             .foregroundStyle(AppTheme.textPrimary)
                     }
                 }

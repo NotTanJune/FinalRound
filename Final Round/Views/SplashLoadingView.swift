@@ -13,18 +13,15 @@ struct SplashLoadingView: View {
             
             VStack(spacing: 32) {
                 // App name with animated effect
-                HStack(spacing: 0) {
+                HStack(spacing: 8) {
                     // "Final" text
                     Text("Final")
-                        .font(.custom("aalto-display-personal-use", size: 98))
+                        .font(AppTheme.font(size: 48, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
-                    
-                    Text(" ")
-                        .font(.custom("aalto-display-personal-use", size: 98))
                     
                     // "Round" text with accent color
                     Text("Round")
-                        .font(.custom("aalto-display-personal-use", size: 98))
+                        .font(AppTheme.font(size: 48, weight: .bold))
                         .foregroundStyle(AppTheme.primary)
                 }
                 .scaleEffect(isAnimating ? 1.0 : 0.9)

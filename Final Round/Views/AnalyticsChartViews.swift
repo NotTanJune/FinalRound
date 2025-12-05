@@ -9,7 +9,7 @@ struct TimeSpentChart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Time Spent per Question")
-                .font(.system(size: 16, weight: .semibold))
+                .font(AppTheme.font(size: 16, weight: .semibold))
                 .foregroundStyle(AppTheme.textPrimary)
             
             Chart {
@@ -22,7 +22,7 @@ struct TimeSpentChart: View {
                         .foregroundStyle(barColor(for: timeSpent))
                         .annotation(position: .top) {
                             Text("\(Int(timeSpent))s")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(AppTheme.font(size: 10, weight: .medium))
                                 .foregroundStyle(AppTheme.textSecondary)
                         }
                     }
@@ -35,7 +35,7 @@ struct TimeSpentChart: View {
                     AxisValueLabel {
                         if let seconds = value.as(Double.self) {
                             Text("\(Int(seconds))s")
-                                .font(.system(size: 10))
+                                .font(AppTheme.font(size: 10))
                         }
                     }
                 }
@@ -45,7 +45,7 @@ struct TimeSpentChart: View {
                     AxisValueLabel {
                         if let label = value.as(String.self) {
                             Text(label)
-                                .font(.system(size: 10))
+                                .font(AppTheme.font(size: 10))
                         }
                     }
                 }
@@ -73,7 +73,7 @@ struct EyeContactChart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Eye Contact Percentage")
-                .font(.system(size: 16, weight: .semibold))
+                .font(AppTheme.font(size: 16, weight: .semibold))
                 .foregroundStyle(AppTheme.textPrimary)
             
             Chart {
@@ -113,7 +113,7 @@ struct EyeContactChart: View {
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 5]))
                     .annotation(position: .trailing, alignment: .leading) {
                         Text("Target")
-                            .font(.system(size: 9))
+                            .font(AppTheme.font(size: 9))
                             .foregroundStyle(Color.gray)
                     }
             }
@@ -125,7 +125,7 @@ struct EyeContactChart: View {
                     AxisValueLabel {
                         if let percent = value.as(Double.self) {
                             Text("\(Int(percent))%")
-                                .font(.system(size: 10))
+                                .font(AppTheme.font(size: 10))
                         }
                     }
                 }
@@ -135,7 +135,7 @@ struct EyeContactChart: View {
                     AxisValueLabel {
                         if let num = value.as(Int.self) {
                             Text("Q\(num)")
-                                .font(.system(size: 10))
+                                .font(AppTheme.font(size: 10))
                         }
                     }
                 }
@@ -155,7 +155,7 @@ struct ConfidenceScoreChart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Confidence Score Trend")
-                .font(.system(size: 16, weight: .semibold))
+                .font(AppTheme.font(size: 16, weight: .semibold))
                 .foregroundStyle(AppTheme.textPrimary)
             
             Chart {
@@ -205,7 +205,7 @@ struct ConfidenceScoreChart: View {
                     AxisValueLabel {
                         if let score = value.as(Double.self) {
                             Text(String(format: "%.1f", score))
-                                .font(.system(size: 10))
+                                .font(AppTheme.font(size: 10))
                         }
                     }
                 }
@@ -215,7 +215,7 @@ struct ConfidenceScoreChart: View {
                     AxisValueLabel {
                         if let num = value.as(Int.self) {
                             Text("Q\(num)")
-                                .font(.system(size: 10))
+                                .font(AppTheme.font(size: 10))
                         }
                     }
                 }
@@ -249,22 +249,22 @@ struct MetricsSummaryCard: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: icon)
-                    .font(.system(size: 20))
+                    .font(AppTheme.font(size: 20))
                     .foregroundStyle(color)
                 Spacer()
             }
             
             Text(value)
-                .font(.system(size: 24, weight: .bold))
+                .font(AppTheme.font(size: 24, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
             
             Text(title)
-                .font(.system(size: 12, weight: .medium))
+                .font(AppTheme.font(size: 12, weight: .medium))
                 .foregroundStyle(AppTheme.textSecondary)
             
             if let subtitle = subtitle {
                 Text(subtitle)
-                    .font(.system(size: 10))
+                    .font(AppTheme.font(size: 10))
                     .foregroundStyle(AppTheme.textSecondary.opacity(0.7))
             }
         }

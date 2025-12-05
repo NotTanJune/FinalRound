@@ -1,18 +1,17 @@
 import SwiftUI
 import Auth
-import PhotosUI
 
 struct VoiceView: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "mic.fill")
-                .font(.system(size: 48))
+                .font(AppTheme.font(size: 48))
                 .foregroundStyle(AppTheme.textSecondary.opacity(0.5))
             Text("Voice Practice")
-                .font(.system(size: 18, weight: .bold))
+                .font(AppTheme.font(size: 18, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
             Text("Practice your speaking skills here.")
-                .font(.system(size: 14))
+                .font(AppTheme.font(size: 14))
                 .foregroundStyle(AppTheme.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -43,13 +42,13 @@ struct ResultsView: View {
                     ScrollView {
                         VStack(spacing: 16) {
                             Image(systemName: "doc.text.fill")
-                                .font(.system(size: 48))
+                                .font(AppTheme.font(size: 48))
                                 .foregroundStyle(AppTheme.textSecondary.opacity(0.5))
                             Text("No Interview Preps")
-                                .font(.system(size: 18, weight: .bold))
+                                .font(AppTheme.font(size: 18, weight: .bold))
                                 .foregroundStyle(AppTheme.textPrimary)
                             Text("Complete an interview to see your history here.")
-                                .font(.system(size: 14))
+                                .font(AppTheme.font(size: 14))
                                 .foregroundStyle(AppTheme.textSecondary)
                                 .multilineTextAlignment(.center)
                         }
@@ -127,7 +126,7 @@ struct ResultsView: View {
                                 .scaleEffect(1.2)
                                 .tint(.white)
                             Text("Deleting...")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(AppTheme.font(size: 14, weight: .medium))
                                 .foregroundStyle(.white)
                         }
                         .padding(24)
@@ -242,11 +241,11 @@ struct SessionCard: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(session.role)
-                            .font(.system(size: 16, weight: .bold))
+                            .font(AppTheme.font(size: 16, weight: .bold))
                             .foregroundStyle(AppTheme.textPrimary)
                         
                         Text(session.formattedDate)
-                            .font(.system(size: 14))
+                            .font(AppTheme.font(size: 14))
                             .foregroundStyle(AppTheme.textSecondary)
                     }
                     
@@ -261,7 +260,7 @@ struct SessionCard: View {
                         
                         Button(action: onDelete) {
                             Image(systemName: "trash")
-                                .font(.system(size: 16))
+                                .font(AppTheme.font(size: 16))
                                 .foregroundStyle(.red)
                                 .padding(8)
                                 .background(Color.red.opacity(0.1))
@@ -299,14 +298,14 @@ struct StatItem: View {
         VStack(spacing: 4) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 12))
+                    .font(AppTheme.font(size: 12))
                 Text(value)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(AppTheme.font(size: 14, weight: .bold))
             }
             .foregroundStyle(AppTheme.primary)
             
             Text(label)
-                .font(.system(size: 10))
+                .font(AppTheme.font(size: 10))
                 .foregroundStyle(AppTheme.textSecondary)
         }
     }
@@ -323,7 +322,7 @@ struct ScoreBadge: View {
     
     var body: some View {
         Text("\(Int(score))%")
-            .font(.system(size: 14, weight: .bold))
+            .font(AppTheme.font(size: 14, weight: .bold))
             .foregroundStyle(.white)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
@@ -341,7 +340,6 @@ struct ProfileView: View {
     @State private var showingChangePassword = false
     @State private var showingDeleteAccount = false
     @State private var showingImagePicker = false
-    @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var isUploadingImage = false
     @State private var isDeletingAccount = false
     @State private var deleteError: String?
@@ -363,10 +361,10 @@ struct ProfileView: View {
                             .scaleEffect(1.5)
                             .tint(.white)
                         Text("Deleting account...")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(AppTheme.font(size: 16, weight: .medium))
                             .foregroundStyle(.white)
                         Text("Please wait while we remove your data")
-                            .font(.system(size: 14))
+                            .font(AppTheme.font(size: 14))
                             .foregroundStyle(.white.opacity(0.8))
                     }
                     .padding(32)
@@ -396,11 +394,22 @@ struct ProfileView: View {
         .task {
             await loadProfile()
         }
-        .photosPicker(isPresented: $showingImagePicker, selection: $selectedPhotoItem, matching: .images)
-        .onChange(of: selectedPhotoItem) { newItem in
+        .sheet(isPresented: $showingImagePicker) {
+            ImagePickerSheet(
+                selectedImage: Binding(
+                    get: { nil },
+                    set: { newImage in
+                        if let image = newImage {
             Task {
-                await handleImageSelection(newItem)
+                                await handleImageSelection(image)
+                            }
+                        }
             }
+                ),
+                isPresented: $showingImagePicker
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.hidden)
         }
         .disabled(isDeletingAccount) // Disable all interaction during deletion
     }
@@ -440,11 +449,11 @@ struct ProfileView: View {
             }
             
             Text(profile.fullName)
-                .font(.system(size: 24, weight: .bold))
+                .font(AppTheme.font(size: 24, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
             
             Text(profile.targetRole)
-                .font(.system(size: 16))
+                .font(AppTheme.font(size: 16))
                 .foregroundStyle(AppTheme.textSecondary)
         }
         .padding(.top, 20)
@@ -472,7 +481,7 @@ struct ProfileView: View {
                 .frame(width: 100, height: 100)
                 .overlay(
                     Text(String(profile.fullName.prefix(1)))
-                        .font(.system(size: 40, weight: .semibold))
+                        .font(AppTheme.font(size: 40, weight: .semibold))
                         .foregroundStyle(AppTheme.primary)
                 )
                 .overlay(Circle().stroke(AppTheme.border, lineWidth: 2))
@@ -484,7 +493,7 @@ struct ProfileView: View {
             showingImagePicker = true
         } label: {
             Image(systemName: "camera.fill")
-                .font(.system(size: 14))
+                .font(AppTheme.font(size: 14))
                 .foregroundStyle(.white)
                 .frame(width: 32, height: 32)
                 .background(AppTheme.primary)
@@ -495,10 +504,27 @@ struct ProfileView: View {
     }
     
     private var accountActions: some View {
+        VStack(spacing: 24) {
+            // Tutorials Section
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Tutorials")
+                    .font(AppTheme.font(size: 16, weight: .semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .padding(.horizontal, 4)
+                
+                VStack(spacing: 8) {
+                    TutorialReplayButton(tutorial: .home)
+                    TutorialReplayButton(tutorial: .interviewSession)
+                    TutorialReplayButton(tutorial: .sessionSummary)
+                }
+            }
+            
+            // Account Actions
         VStack(spacing: 12) {
             changePasswordButton
             deleteAccountButton
             signOutButton
+            }
         }
     }
     
@@ -511,9 +537,9 @@ struct ProfileView: View {
                 Text("Change Password")
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(AppTheme.font(size: 14, weight: .semibold))
             }
-            .font(.system(size: 16, weight: .medium))
+            .font(AppTheme.font(size: 16, weight: .medium))
             .foregroundStyle(AppTheme.textPrimary)
             .padding()
             .background(Color.white)
@@ -530,9 +556,9 @@ struct ProfileView: View {
                 Text("Delete Account")
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(AppTheme.font(size: 14, weight: .semibold))
             }
-            .font(.system(size: 16, weight: .medium))
+            .font(AppTheme.font(size: 16, weight: .medium))
             .foregroundStyle(.red)
             .padding()
             .background(Color.white)
@@ -545,7 +571,7 @@ struct ProfileView: View {
             appState.signOut()
         } label: {
             Text("Sign Out")
-                .font(.system(size: 16, weight: .semibold))
+                .font(AppTheme.font(size: 16, weight: .semibold))
                 .foregroundStyle(.red)
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -658,25 +684,13 @@ struct ProfileView: View {
         }
     }
     
-    private func handleImageSelection(_ item: PhotosPickerItem?) async {
-        guard let item = item else { return }
-        
+    private func handleImageSelection(_ image: UIImage) async {
         await MainActor.run {
             isUploadingImage = true
         }
         
         do {
-            // Load the image data
-            guard let data = try await item.loadTransferable(type: Data.self),
-                  let image = UIImage(data: data) else {
-                print("❌ Failed to load image data")
-                await MainActor.run {
-                    isUploadingImage = false
-                }
-                return
-            }
-            
-            // Upload to Supabase
+            // Upload to Supabase (image is already resized by ImagePickerSheet)
             let avatarURL = try await supabase.uploadAvatar(image: image)
             
             // Update profile with new avatar URL

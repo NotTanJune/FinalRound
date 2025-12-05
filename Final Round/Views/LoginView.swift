@@ -67,7 +67,7 @@ struct LoginView: View {
                     
                     // Welcome Text
                     Text(isCreatingAccount ? "Create Account" : "Welcome Back")
-                        .font(.system(size: 28, weight: .bold))
+                        .font(AppTheme.font(size: 28, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                     
                     // Form Card
@@ -77,13 +77,13 @@ struct LoginView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                             Text("Full Name")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(AppTheme.font(size: 14, weight: .medium))
                                 .foregroundStyle(AppTheme.textSecondary)
                                 Spacer()
                                 // Security: Character count indicator
                                 if fullName.count > InputSanitizer.Limits.fullName - 20 {
                                     Text("\(fullName.count)/\(InputSanitizer.Limits.fullName)")
-                                        .font(.system(size: 12))
+                                        .font(AppTheme.font(size: 12))
                                         .foregroundStyle(fullName.count > InputSanitizer.Limits.fullName ? AppTheme.softRed : AppTheme.textSecondary)
                                 }
                             }
@@ -91,7 +91,7 @@ struct LoginView: View {
                             ZStack(alignment: .leading) {
                                 if fullName.isEmpty {
                                     Text("John Doe")
-                                        .font(.system(size: 16))
+                                        .font(AppTheme.font(size: 16))
                                         .foregroundStyle(AppTheme.textSecondary.opacity(0.5))
                                         .padding(.horizontal, 16)
                                 }
@@ -116,7 +116,7 @@ struct LoginView: View {
                             // Validation error message
                             if let error = nameValidationError {
                                 Text(error)
-                                    .font(.system(size: 12))
+                                    .font(AppTheme.font(size: 12))
                                     .foregroundStyle(AppTheme.softRed)
                             }
                         }
@@ -126,13 +126,13 @@ struct LoginView: View {
                     // Email
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Email")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(AppTheme.font(size: 14, weight: .medium))
                             .foregroundStyle(AppTheme.textSecondary)
                         
                         ZStack(alignment: .leading) {
                             if email.isEmpty {
                                 Text("you@example.com")
-                                    .font(.system(size: 16))
+                                    .font(AppTheme.font(size: 16))
                                     .foregroundStyle(AppTheme.textSecondary.opacity(0.5))
                                     .padding(.horizontal, 16)
                             }
@@ -159,7 +159,7 @@ struct LoginView: View {
                         // Validation error message
                         if let error = emailValidationError {
                             Text(error)
-                                .font(.system(size: 12))
+                                .font(AppTheme.font(size: 12))
                                 .foregroundStyle(AppTheme.softRed)
                         }
                     }
@@ -167,14 +167,14 @@ struct LoginView: View {
                     // Password
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Password")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(AppTheme.font(size: 14, weight: .medium))
                             .foregroundStyle(AppTheme.textSecondary)
                         
                         ZStack(alignment: .trailing) {
                             ZStack(alignment: .leading) {
                                 if password.isEmpty {
                                     Text("••••••••")
-                                        .font(.system(size: 16))
+                                        .font(AppTheme.font(size: 16))
                                         .foregroundStyle(AppTheme.textSecondary.opacity(0.5))
                                         .padding(.horizontal, 16)
                                 }
@@ -221,7 +221,7 @@ struct LoginView: View {
                                 }
                             } label: {
                                 Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
-                                    .font(.system(size: 16))
+                                    .font(AppTheme.font(size: 16))
                                     .foregroundStyle(AppTheme.textSecondary)
                                     .frame(width: 44, height: 44)
                                     .contentTransition(.symbolEffect(.replace))
@@ -233,7 +233,7 @@ struct LoginView: View {
                         // Validation error message
                         if let error = passwordValidationError {
                             Text(error)
-                                .font(.system(size: 12))
+                                .font(AppTheme.font(size: 12))
                                 .foregroundStyle(AppTheme.softRed)
                         }
                     }
@@ -270,7 +270,7 @@ struct LoginView: View {
                             showForgotPasswordSheet = true
                         } label: {
                             Text("Forgot Password?")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(AppTheme.font(size: 14, weight: .medium))
                                 .foregroundStyle(AppTheme.textSecondary)
                         }
                         .disabled(isLoading)
@@ -285,7 +285,7 @@ struct LoginView: View {
                         }
                     } label: {
                         Text(isCreatingAccount ? "Already have an account? Sign In" : "Don't have an account? Create one")
-                            .font(.system(size: 15, weight: .medium))
+                            .font(AppTheme.font(size: 15, weight: .medium))
                             .foregroundStyle(AppTheme.primary)
                     }
                     .disabled(isLoading)
@@ -736,11 +736,11 @@ struct ErrorBanner: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 16, weight: .semibold))
+                .font(AppTheme.font(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
             
             Text(message)
-                .font(.system(size: 14, weight: .medium))
+                .font(AppTheme.font(size: 14, weight: .medium))
                 .foregroundStyle(.white)
                 .fixedSize(horizontal: false, vertical: true)
             
@@ -762,11 +762,11 @@ struct FloatingErrorBanner: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 16, weight: .semibold))
+                .font(AppTheme.font(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
             
             Text(message)
-                .font(.system(size: 14, weight: .medium))
+                .font(AppTheme.font(size: 14, weight: .medium))
                 .foregroundStyle(.white)
                 .fixedSize(horizontal: false, vertical: true)
             
@@ -787,7 +787,7 @@ struct LoginTextFieldStyle: TextFieldStyle {
     
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
-            .font(.system(size: 16))
+            .font(AppTheme.font(size: 16))
             .foregroundStyle(AppTheme.textPrimary)
             .tint(AppTheme.primary)
             .padding(.horizontal, 16)
@@ -853,9 +853,9 @@ struct PasswordResetFlowView: View {
                     if let error = errorMessage {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.circle.fill")
-                                .font(.system(size: 14))
+                                .font(AppTheme.font(size: 14))
                             Text(error)
-                                .font(.system(size: 13))
+                                .font(AppTheme.font(size: 13))
                         }
                         .foregroundStyle(AppTheme.softRed)
                     }
@@ -885,7 +885,7 @@ struct PasswordResetFlowView: View {
                     }
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(AppTheme.font(size: 16, weight: .semibold))
                         .foregroundStyle(AppTheme.textPrimary)
                         .padding(8)
                         .background(AppTheme.background)
@@ -894,7 +894,7 @@ struct PasswordResetFlowView: View {
             }
             
             Text(headerTitle)
-                .font(.system(size: 20, weight: .bold))
+                .font(AppTheme.font(size: 20, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
             
             Spacer()
@@ -903,7 +903,7 @@ struct PasswordResetFlowView: View {
                 onDismiss()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(AppTheme.font(size: 16, weight: .semibold))
                     .foregroundStyle(AppTheme.textSecondary)
                     .padding(8)
                     .background(AppTheme.background)
@@ -933,19 +933,19 @@ struct PasswordResetFlowView: View {
     private var emailStepContent: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Enter your email address and we'll send you a verification code to reset your password.")
-                .font(.system(size: 14))
+                .font(AppTheme.font(size: 14))
                 .foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             
             VStack(alignment: .leading, spacing: 8) {
                 Text("Email")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(AppTheme.font(size: 14, weight: .medium))
                     .foregroundStyle(AppTheme.textSecondary)
                 
                 ZStack(alignment: .leading) {
                     if email.isEmpty {
                         Text("you@example.com")
-                            .font(.system(size: 16))
+                            .font(AppTheme.font(size: 16))
                             .foregroundStyle(AppTheme.textSecondary.opacity(0.5))
                             .padding(.horizontal, 16)
                     }
@@ -984,13 +984,13 @@ struct PasswordResetFlowView: View {
     private var otpStepContent: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("We've sent a 6-digit verification code to \(email). Enter it below.")
-                .font(.system(size: 14))
+                .font(AppTheme.font(size: 14))
                 .foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             
             VStack(alignment: .leading, spacing: 8) {
                 Text("Verification Code")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(AppTheme.font(size: 14, weight: .medium))
                     .foregroundStyle(AppTheme.textSecondary)
                 
                 // OTP Input with auto-submit when complete
@@ -1022,7 +1022,7 @@ struct PasswordResetFlowView: View {
                 onSendOTP()
             } label: {
                 Text("Didn't receive code? Resend")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(AppTheme.font(size: 14, weight: .medium))
                     .foregroundStyle(AppTheme.primary)
             }
             .disabled(isLoading)
@@ -1033,21 +1033,21 @@ struct PasswordResetFlowView: View {
     private var newPasswordStepContent: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Create a new password for your account. Make sure it's different from your previous password.")
-                .font(.system(size: 14))
+                .font(AppTheme.font(size: 14))
                 .foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             
             // New Password
             VStack(alignment: .leading, spacing: 8) {
                 Text("New Password")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(AppTheme.font(size: 14, weight: .medium))
                     .foregroundStyle(AppTheme.textSecondary)
                 
                 ZStack(alignment: .trailing) {
                     ZStack(alignment: .leading) {
                         if newPassword.isEmpty {
                             Text("••••••••")
-                                .font(.system(size: 16))
+                                .font(AppTheme.font(size: 16))
                                 .foregroundStyle(AppTheme.textSecondary.opacity(0.5))
                                 .padding(.horizontal, 16)
                         }
@@ -1069,7 +1069,7 @@ struct PasswordResetFlowView: View {
                         isNewPasswordVisible.toggle()
                     } label: {
                         Image(systemName: isNewPasswordVisible ? "eye.slash.fill" : "eye.fill")
-                            .font(.system(size: 16))
+                            .font(AppTheme.font(size: 16))
                             .foregroundStyle(AppTheme.textSecondary)
                             .frame(width: 44, height: 44)
                     }
@@ -1080,14 +1080,14 @@ struct PasswordResetFlowView: View {
             // Confirm Password
             VStack(alignment: .leading, spacing: 8) {
                 Text("Confirm Password")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(AppTheme.font(size: 14, weight: .medium))
                     .foregroundStyle(AppTheme.textSecondary)
                 
                 ZStack(alignment: .trailing) {
                     ZStack(alignment: .leading) {
                         if confirmPassword.isEmpty {
                             Text("••••••••")
-                                .font(.system(size: 16))
+                                .font(AppTheme.font(size: 16))
                                 .foregroundStyle(AppTheme.textSecondary.opacity(0.5))
                                 .padding(.horizontal, 16)
                         }
@@ -1119,7 +1119,7 @@ struct PasswordResetFlowView: View {
                         isConfirmPasswordVisible.toggle()
                     } label: {
                         Image(systemName: isConfirmPasswordVisible ? "eye.slash.fill" : "eye.fill")
-                            .font(.system(size: 16))
+                            .font(AppTheme.font(size: 16))
                             .foregroundStyle(AppTheme.textSecondary)
                             .frame(width: 44, height: 44)
                     }
@@ -1130,7 +1130,7 @@ struct PasswordResetFlowView: View {
             // Password requirements hint
             if !newPassword.isEmpty && newPassword.count < 6 {
                 Text("Password must be at least 6 characters")
-                    .font(.system(size: 12))
+                    .font(AppTheme.font(size: 12))
                     .foregroundStyle(AppTheme.textSecondary)
             }
             
@@ -1224,7 +1224,7 @@ struct OTPDigitBox: View {
                 )
             
             Text(digit)
-                .font(.system(size: 24, weight: .bold))
+                .font(AppTheme.font(size: 24, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
         }
         .frame(width: 48, height: 56)

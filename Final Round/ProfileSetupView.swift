@@ -57,11 +57,6 @@ struct ProfileSetupView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .onChange(of: viewModel.selectedPhotoItem) { _, _ in
-            Task {
-                await viewModel.loadPhoto()
-            }
-        }
         .onChange(of: viewModel.currentStep) { _, newStep in
             if newStep == .complete {
                 // Slight delay for animation to complete
@@ -99,16 +94,16 @@ struct IdentityStepView: View {
                 // Header
                 VStack(alignment: .leading, spacing: 8) {
                     Image(systemName: "person.text.rectangle")
-                        .font(.system(size: 40))
+                        .font(AppTheme.font(size: 40))
                         .foregroundStyle(AppTheme.primary)
                         .padding(.bottom, 8)
                     
                     Text("Let's tailor your interview prep")
-                        .font(.system(size: 28, weight: .bold))
+                        .font(AppTheme.font(size: 28, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                     
                     Text("Tell us about your career goals so we can personalize your experience")
-                        .font(.system(size: 16))
+                        .font(AppTheme.font(size: 16))
                         .foregroundStyle(AppTheme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -119,7 +114,7 @@ struct IdentityStepView: View {
                     // Target Role
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Target Role")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(AppTheme.font(size: 14, weight: .medium))
                             .foregroundStyle(AppTheme.textSecondary)
                         
                         TextField("", text: $viewModel.targetRole, prompt: Text("Product Manager"))
@@ -174,17 +169,17 @@ struct SkillsStepView: View {
                 // Header
                 VStack(alignment: .leading, spacing: 8) {
                     Image(systemName: "star.circle.fill")
-                        .font(.system(size: 40))
+                        .font(AppTheme.font(size: 40))
                         .foregroundStyle(AppTheme.primary)
                         .symbolRenderingMode(.hierarchical)
                         .padding(.bottom, 8)
                     
                     Text(viewModel.isLoadingSkills ? "Analyzing industry requirements..." : "Select your skills")
-                        .font(.system(size: 28, weight: .bold))
+                        .font(AppTheme.font(size: 28, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                     
                     Text("Choose at least 3 skills that best represent your expertise")
-                        .font(.system(size: 16))
+                        .font(AppTheme.font(size: 16))
                         .foregroundStyle(AppTheme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -211,7 +206,7 @@ struct SkillsStepView: View {
                         // Add Custom Skill
                         HStack(spacing: 12) {
                             TextField("", text: $viewModel.customSkill, prompt: Text("Add custom skill..."))
-                                .font(.system(size: 14, weight: .medium))
+                                .font(AppTheme.font(size: 14, weight: .medium))
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 10)
                                 .background(
@@ -232,7 +227,7 @@ struct SkillsStepView: View {
                                 viewModel.addCustomSkill()
                             } label: {
                                 Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 28))
+                                    .font(AppTheme.font(size: 28))
                                     .foregroundStyle(AppTheme.primary)
                             }
                             .disabled(viewModel.customSkill.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -245,7 +240,7 @@ struct SkillsStepView: View {
                                 .foregroundStyle(viewModel.selectedSkills.count >= 3 ? AppTheme.primary : AppTheme.textSecondary)
                             
                             Text("\(viewModel.selectedSkills.count) skills selected")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(AppTheme.font(size: 14, weight: .medium))
                                 .foregroundStyle(AppTheme.textSecondary)
                             
                             Spacer()
@@ -261,7 +256,7 @@ struct SkillsStepView: View {
                 
                 if let error = viewModel.skillsError {
                     Text(error)
-                        .font(.system(size: 14))
+                        .font(AppTheme.font(size: 14))
                         .foregroundStyle(AppTheme.softRed)
                         .padding(.horizontal, 16)
                 }
@@ -278,7 +273,7 @@ struct SkillsStepView: View {
                         viewModel.goToPreviousStep()
                     } label: {
                         Text("Back")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(AppTheme.font(size: 16, weight: .semibold))
                             .foregroundStyle(AppTheme.textSecondary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
@@ -305,6 +300,7 @@ struct SkillsStepView: View {
 // MARK: - Photo Step
 struct PhotoStepView: View {
     @ObservedObject var viewModel: ProfileSetupViewModel
+    @State private var showingImagePicker = false
     
     var body: some View {
         ScrollView {
@@ -312,16 +308,16 @@ struct PhotoStepView: View {
                 // Header
                 VStack(alignment: .leading, spacing: 8) {
                     Image(systemName: "person.crop.circle")
-                        .font(.system(size: 40))
+                        .font(AppTheme.font(size: 40))
                         .foregroundStyle(AppTheme.primary)
                         .padding(.bottom, 8)
                     
                     Text("Put a face to the name")
-                        .font(.system(size: 28, weight: .bold))
+                        .font(AppTheme.font(size: 28, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                     
                     Text("Add a profile photo to personalize your experience")
-                        .font(.system(size: 16))
+                        .font(AppTheme.font(size: 16))
                         .foregroundStyle(AppTheme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -331,10 +327,11 @@ struct PhotoStepView: View {
                 VStack(spacing: 16) {
                     ZStack {
                         ProfilePhotoPicker(
-                            selectedItem: $viewModel.selectedPhotoItem,
-                            image: viewModel.profileImage,
+                            selectedImage: $viewModel.profileImage,
                             initials: String(viewModel.fullName.prefix(1))
-                        )
+                        ) {
+                            showingImagePicker = true
+                        }
                         .disabled(viewModel.isLoadingPhoto)
                         .opacity(viewModel.isLoadingPhoto ? 0.5 : 1.0)
                         
@@ -344,8 +341,8 @@ struct PhotoStepView: View {
                                 ProgressView()
                                     .scaleEffect(1.5)
                                     .tint(AppTheme.primary)
-                                Text("Loading from iCloud...")
-                                    .font(.system(size: 13, weight: .medium))
+                                Text("Loading photo...")
+                                    .font(AppTheme.font(size: 13, weight: .medium))
                                     .foregroundStyle(AppTheme.textSecondary)
                             }
                             .frame(width: 140, height: 140)
@@ -357,12 +354,12 @@ struct PhotoStepView: View {
                     }
                     
                     if viewModel.isLoadingPhoto {
-                        Text("This may take a moment for iCloud photos...")
-                            .font(.system(size: 14, weight: .medium))
+                        Text("Processing photo...")
+                            .font(AppTheme.font(size: 14, weight: .medium))
                             .foregroundStyle(AppTheme.textSecondary)
                     } else {
                         Text(viewModel.profileImage == nil ? "Tap to add photo" : "Tap to change photo")
-                            .font(.system(size: 14))
+                            .font(AppTheme.font(size: 14))
                             .foregroundStyle(AppTheme.textSecondary)
                     }
                 }
@@ -392,7 +389,7 @@ struct PhotoStepView: View {
                                     .tint(.white)
                                 if !viewModel.saveProgress.isEmpty {
                                     Text(viewModel.saveProgress)
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(AppTheme.font(size: 16, weight: .semibold))
                                 }
                             }
                         } else {
@@ -408,12 +405,23 @@ struct PhotoStepView: View {
                         viewModel.skipPhoto()
                     } label: {
                         Text("Skip for now")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(AppTheme.font(size: 14, weight: .medium))
                             .foregroundStyle(AppTheme.textSecondary)
                     }
                     .disabled(viewModel.isSaving || viewModel.isLoadingPhoto)
                 }
             }
+        }
+        .sheet(isPresented: $showingImagePicker) {
+            ImagePickerSheet(
+                selectedImage: $viewModel.profileImage,
+                isPresented: $showingImagePicker
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.hidden)
+        }
+        .onChange(of: viewModel.profileImage) { _, _ in
+            viewModel.onPhotoSelected()
         }
         .alert("Error", isPresented: .constant(viewModel.saveError != nil)) {
             Button("OK") {
@@ -445,11 +453,11 @@ struct LocationStepView: View {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Where are you located?")
-                        .font(.system(size: 28, weight: .bold))
+                        .font(AppTheme.font(size: 28, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                     
                     Text("We'll show you relevant jobs in your area with local currency")
-                        .font(.system(size: 16))
+                        .font(AppTheme.font(size: 16))
                         .foregroundStyle(AppTheme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -468,24 +476,24 @@ struct LocationStepView: View {
                                     .tint(AppTheme.primary)
                             } else {
                                 Image(systemName: "location.fill")
-                                    .font(.system(size: 20))
+                                    .font(AppTheme.font(size: 20))
                                     .foregroundStyle(AppTheme.primary)
                             }
                             
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Use Current Location")
-                                    .font(.system(size: 16, weight: .medium))
+                                    .font(AppTheme.font(size: 16, weight: .medium))
                                     .foregroundStyle(AppTheme.textPrimary)
                                 
                                 Text("Automatically detect your location")
-                                    .font(.system(size: 13))
+                                    .font(AppTheme.font(size: 13))
                                     .foregroundStyle(AppTheme.textSecondary)
                             }
                             
                             Spacer()
                             
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(AppTheme.font(size: 14, weight: .semibold))
                                 .foregroundStyle(AppTheme.textSecondary)
                         }
                         .padding(16)
@@ -501,7 +509,7 @@ struct LocationStepView: View {
                             .frame(height: 1)
                         
                         Text("OR")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(AppTheme.font(size: 12, weight: .medium))
                             .foregroundStyle(AppTheme.textSecondary)
                             .padding(.horizontal, 12)
                         
@@ -514,7 +522,7 @@ struct LocationStepView: View {
                     // Manual location input
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Enter Location")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(AppTheme.font(size: 14, weight: .medium))
                             .foregroundStyle(AppTheme.textSecondary)
                         
                         TextField("e.g., San Francisco, USA", text: $viewModel.location)
@@ -529,16 +537,16 @@ struct LocationStepView: View {
                     if !viewModel.location.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Detected Currency")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(AppTheme.font(size: 14, weight: .medium))
                                 .foregroundStyle(AppTheme.textSecondary)
                             
                             HStack {
                                 Image(systemName: CurrencyFormatter.getSFSymbolName(for: viewModel.currency))
-                                    .font(.system(size: 20))
+                                    .font(AppTheme.font(size: 20))
                                     .foregroundStyle(AppTheme.primary)
                                 
                                 Text(viewModel.currency)
-                                    .font(.system(size: 16, weight: .medium))
+                                    .font(AppTheme.font(size: 16, weight: .medium))
                                     .foregroundStyle(AppTheme.textPrimary)
                                 
                                 Spacer()
@@ -585,17 +593,17 @@ struct CompleteStepView: View {
             
             VStack(spacing: 24) {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 80))
+                    .font(AppTheme.font(size: 80))
                     .foregroundStyle(AppTheme.primary)
                     .symbolEffect(.bounce, value: true)
                 
                 VStack(spacing: 12) {
                     Text("All Set!")
-                        .font(.system(size: 32, weight: .bold))
+                        .font(AppTheme.font(size: 32, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                     
                     Text("Your profile is ready. Let's start practicing!")
-                        .font(.system(size: 16))
+                        .font(AppTheme.font(size: 16))
                         .foregroundStyle(AppTheme.textSecondary)
                         .multilineTextAlignment(.center)
                 }
@@ -611,7 +619,7 @@ struct CompleteStepView: View {
 struct CustomTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
-            .font(.system(size: 16))
+            .font(AppTheme.font(size: 16))
             .foregroundStyle(AppTheme.textPrimary)
             .padding(.horizontal, 16)
             .padding(.vertical, 14)

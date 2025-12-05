@@ -31,6 +31,8 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
-        .environmentObject(AppState())
+    let appState = AppState()
+    return ContentView()
+        .environmentObject(appState)
+        .environmentObject(appState.tutorialManager)
 }

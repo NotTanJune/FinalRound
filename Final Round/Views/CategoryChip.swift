@@ -8,9 +8,9 @@ struct CategoryChip: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
+                .font(AppTheme.font(size: 14, weight: .semibold))
             Text(text)
-                .font(.system(size: 14, weight: .semibold))
+                .font(AppTheme.font(size: 14, weight: .semibold))
         }
         .foregroundStyle(isSelected ? Color.white : AppTheme.textPrimary)
         .padding(.horizontal, 12)

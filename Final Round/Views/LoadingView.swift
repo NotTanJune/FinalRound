@@ -13,7 +13,7 @@ struct LoadingView: View {
                 .frame(width: size, height: size)
             
             Text(message)
-                .font(.system(size: 16, weight: .medium))
+                .font(AppTheme.font(size: 16, weight: .medium))
                 .foregroundStyle(AppTheme.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
