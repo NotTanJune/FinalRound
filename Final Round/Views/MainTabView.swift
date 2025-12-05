@@ -163,43 +163,26 @@ struct HomeView: View {
                                 .font(AppTheme.font(size: 20, weight: .bold))
                                 .foregroundStyle(.white)
                             
-                            Text("Browse jobs below or generate a custom interview prep.")
+                            Text("Generate a custom interview prep or select from recommended jobs below.")
                                 .font(AppTheme.font(size: 15))
                                 .foregroundStyle(.white.opacity(0.9))
                                 .lineSpacing(4)
                             
-                            HStack(spacing: 12) {
-                                Button {
-                                    showingRecommendedJobs = true
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "list.bullet")
-                                        Text("Browse Jobs")
-                                    }
-                                    .font(AppTheme.font(size: 14, weight: .semibold))
-                                    .foregroundStyle(AppTheme.primary)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(Color.white)
-                                    .cornerRadius(20)
+                            Button {
+                                showingInterviewSetup = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "wand.and.stars")
+                                    Text("Generate")
                                 }
-                                
-                                Button {
-                                    showingInterviewSetup = true
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "wand.and.stars")
-                                        Text("Generate")
-                                    }
-                                    .font(AppTheme.font(size: 14, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(Color.white.opacity(0.2))
-                                    .cornerRadius(20)
-                                }
-                                .tutorialHighlight("home-generate-button")
+                                .font(AppTheme.font(size: 14, weight: .semibold))
+                                .foregroundStyle(AppTheme.primary)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 12)
+                                .background(Color.white)
+                                .cornerRadius(20)
                             }
+                            .tutorialHighlight("home-generate-button")
                         }
                         .padding(24)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -348,6 +331,16 @@ struct HomeView: View {
                 // Start home tutorial if not seen yet (with slight delay for better UX)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     tutorialManager.startHomeTutorialIfNeeded()
+                }
+            }
+            // Sync profile image when it changes in ProfileView (via AppState)
+            .onChange(of: appState.preloadedProfileImage) { _, newImage in
+                profileImage = newImage
+            }
+            // Sync profile data when it changes in ProfileView (via AppState)
+            .onChange(of: appState.preloadedProfile?.avatarURL) { _, _ in
+                if let profile = appState.preloadedProfile {
+                    userProfile = profile
                 }
             }
         }

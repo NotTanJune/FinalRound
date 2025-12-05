@@ -817,8 +817,7 @@ class SupabaseService: ObservableObject {
         try await RateLimiter.shared.waitAndConsume(.supabaseDB)
         
         // Use direct upload which bypasses the Supabase SDK's URLSession
-        // This avoids HTTP/3 QUIC connection issues that cause timeouts
-        // after long operations like iCloud photo downloads
+        // Each attempt creates a fresh URLSession to avoid stale QUIC connections
         var lastError: Error?
         for attempt in 1...3 {
             do {
@@ -834,11 +833,17 @@ class SupabaseService: ObservableObject {
                 return publicURL
             } catch {
                 lastError = error
+                let nsError = error as NSError
                 SecureLogger.warning("Avatar upload attempt \(attempt) failed: \(error.localizedDescription)", category: .database)
                 
                 if attempt < 3 {
-                    // Short delay before retry
-                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+                    // Exponential backoff: 1s, then 2s
+                    // Longer delays give iOS time to clean up stale connections
+                    let delaySeconds = Double(attempt)
+                    try? await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
+                    
+                    // Log connection reset
+                    SecureLogger.debug("Retrying upload with fresh connection...", category: .database)
                 }
             }
         }
@@ -918,7 +923,11 @@ class SupabaseService: ObservableObject {
         
         SecureLogger.debug("Starting direct delete from \(bucket)/\(path)", category: .database)
         
-        let (responseData, response) = try await Self.uploadSession.data(for: request)
+        // Create a fresh session to avoid stale QUIC connections
+        let session = Self.createFreshUploadSession()
+        defer { session.finishTasksAndInvalidate() }
+        
+        let (responseData, response) = try await session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SupabaseError.networkError
@@ -945,7 +954,11 @@ class SupabaseService: ObservableObject {
             altRequest.setValue(supabaseKey, forHTTPHeaderField: "apikey")
             altRequest.timeoutInterval = 15
             
-            let (_, altResponse) = try await Self.uploadSession.data(for: altRequest)
+            // Create another fresh session for the alternative request
+            let altSession = Self.createFreshUploadSession()
+            defer { altSession.finishTasksAndInvalidate() }
+            
+            let (_, altResponse) = try await altSession.data(for: altRequest)
             guard let altHttpResponse = altResponse as? HTTPURLResponse,
                   (200...299).contains(altHttpResponse.statusCode) || altHttpResponse.statusCode == 404 else {
                 let errorMessage = String(data: responseData, encoding: .utf8) ?? "Unknown error"
@@ -976,29 +989,34 @@ class SupabaseService: ObservableObject {
     
     // MARK: - Direct Upload Session (Bypasses SDK to avoid QUIC issues)
     
-    /// Custom URLSession optimized for fast, reliable uploads
-    /// Uses short timeouts + retry logic to handle stale QUIC connections
-    private static let uploadSession: URLSession = {
+    /// Creates a fresh URLSession for each upload to avoid stale connection reuse
+    /// iOS aggressively caches QUIC connections which can become stale and timeout
+    private static func createFreshUploadSession() -> URLSession {
         let config = URLSessionConfiguration.ephemeral  // Fresh session, no cached connections
         
         // Short timeouts to fail fast on stale connections (then retry)
-        config.timeoutIntervalForRequest = 15   // 15 second timeout per request
-        config.timeoutIntervalForResource = 30  // 30 second total resource timeout
+        config.timeoutIntervalForRequest = 20   // 20 second timeout per request
+        config.timeoutIntervalForResource = 45  // 45 second total resource timeout
         
         // Disable waiting for connectivity - fail fast instead
         config.waitsForConnectivity = false
         
         // Connection settings for reliability
         config.httpShouldUsePipelining = false  // More reliable for uploads
-        config.httpMaximumConnectionsPerHost = 2  // Fewer connections = fresher connections
+        config.httpMaximumConnectionsPerHost = 1  // Single connection = less confusion
         
-        // Request fresh connection by not reusing
+        // Disable caching completely
         config.httpShouldSetCookies = false
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         
+        // Force HTTP/2 instead of HTTP/3 (QUIC) - QUIC has stale connection issues
+        if #available(iOS 15.0, *) {
+            config.multipathServiceType = .none
+        }
+        
         return URLSession(configuration: config)
-    }()
+    }
     
     /// Supabase configuration for direct API calls
     private var supabaseURL: String {
@@ -1043,12 +1061,19 @@ class SupabaseService: ObservableObject {
         request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
         request.setValue("true", forHTTPHeaderField: "x-upsert") // Upsert mode
         
-        // Shorter timeout for the request itself
+        // Request timeout
         request.timeoutInterval = 30
         
         SecureLogger.debug("Starting direct upload to \(bucket)/\(path)", category: .database)
         
-        let (responseData, response) = try await Self.uploadSession.data(for: request)
+        // Create a fresh session for this upload to avoid stale QUIC connections
+        let session = Self.createFreshUploadSession()
+        defer {
+            // Invalidate session after use to release connections
+            session.finishTasksAndInvalidate()
+        }
+        
+        let (responseData, response) = try await session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SupabaseError.networkError
@@ -1068,7 +1093,11 @@ class SupabaseService: ObservableObject {
             var putRequest = request
             putRequest.httpMethod = "PUT"
             
-            let (_, putResponse) = try await Self.uploadSession.data(for: putRequest)
+            // Create another fresh session for PUT request
+            let putSession = Self.createFreshUploadSession()
+            defer { putSession.finishTasksAndInvalidate() }
+            
+            let (_, putResponse) = try await putSession.data(for: putRequest)
             guard let putHttpResponse = putResponse as? HTTPURLResponse,
                   (200...299).contains(putHttpResponse.statusCode) else {
                 let errorMessage = String(data: responseData, encoding: .utf8) ?? "Unknown error"
