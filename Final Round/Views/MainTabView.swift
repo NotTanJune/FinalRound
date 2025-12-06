@@ -179,7 +179,7 @@ struct HomeView: View {
                                 .foregroundStyle(AppTheme.primary)
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 12)
-                                .background(Color.white)
+                                .background(AppTheme.cardBackground)
                                 .cornerRadius(20)
                             }
                             .tutorialHighlight("home-generate-button")
@@ -202,7 +202,7 @@ struct HomeView: View {
                                 TextField("Paste job posting URL", text: $jobURLInput)
                                     .textFieldStyle(.plain)
                                     .padding(12)
-                                    .background(Color.white)
+                                    .background(AppTheme.inputBackground)
                                     .cornerRadius(12)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 12)
@@ -235,9 +235,9 @@ struct HomeView: View {
                             }
                         }
                         .padding(16)
-                        .background(Color.white)
+                        .background(AppTheme.cardBackground)
                         .cornerRadius(16)
-                        .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
+                        .shadow(color: AppTheme.shadowColor, radius: 5, y: 2)
                         .tutorialHighlight("home-job-url-section")
                         
                         // Recommended Jobs

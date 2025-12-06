@@ -216,7 +216,7 @@ private struct TutorialOverlayContent: View {
         VStack(spacing: 0) {
             if step.arrowDirection == .up, highlightFrame != nil {
                 Triangle()
-                    .fill(Color.white)
+                    .fill(AppTheme.cardBackground)
                     .frame(width: 20, height: 10)
                     .offset(x: arrowOffset)
             }
@@ -225,7 +225,7 @@ private struct TutorialOverlayContent: View {
             
             if step.arrowDirection == .down, highlightFrame != nil {
                 Triangle()
-                    .fill(Color.white)
+                    .fill(AppTheme.cardBackground)
                     .frame(width: 20, height: 10)
                     .rotationEffect(.degrees(180))
                     .offset(x: arrowOffset)
@@ -336,9 +336,9 @@ private struct TutorialOverlayContent: View {
             .padding(.top, 4)
         }
         .padding(20)
-        .background(Color.white)
+        .background(AppTheme.cardBackground)
         .cornerRadius(20)
-        .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
+        .shadow(color: AppTheme.shadowColor, radius: 20, x: 0, y: 10)
         .padding(.horizontal, 20)
     }
 }
@@ -399,7 +399,7 @@ struct TutorialReplayButton: View {
                     .foregroundStyle(AppTheme.primary)
             }
             .padding(12)
-            .background(Color.white)
+            .background(AppTheme.cardBackground)
             .cornerRadius(12)
         }
         .buttonStyle(.plain)

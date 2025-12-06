@@ -20,7 +20,7 @@ struct JobDescriptionView: View {
                                 .frame(width: 64, height: 64)
                                 .background(AppTheme.cardBackground)
                                 .cornerRadius(12)
-                                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 4)
+                                .shadow(color: AppTheme.shadowColor, radius: 8, x: 0, y: 4)
                             
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(job.role)

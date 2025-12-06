@@ -18,7 +18,8 @@ struct ContentView: View {
             } else if !appState.hasCompletedOnboarding {
                 OnboardingView()
             } else if !appState.isLoggedIn {
-                WelcomeView()
+                // Go directly to LoginView after onboarding to avoid flash
+                LoginView()
             } else if !appState.hasProfileSetup {
                 ProfileSetupView()
             } else {

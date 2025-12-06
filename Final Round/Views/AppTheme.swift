@@ -1,30 +1,43 @@
 import SwiftUI
 
 enum AppTheme {
-    // Primary Colors
-    static let primary = Color(hex: "0F8A4A")
-    static let lightGreen = Color(hex: "CFF9D8")
+    // MARK: - Adaptive Colors (Light/Dark Mode)
     
-    // Accent Colors
+    // Primary Brand Colors (consistent across modes)
+    static let primary = Color(hex: "0F8A4A")
+    
+    // Adaptive Background Colors
+    static var background: Color { Color("BackgroundPrimary") }
+    static var cardBackground: Color { Color("CardBackground") }
+    static var elevatedSurface: Color { Color("ElevatedSurface") }
+    static var inputBackground: Color { Color("InputBackground") }
+    
+    // Adaptive Text Colors
+    static var textPrimary: Color { Color("TextPrimary") }
+    static var textSecondary: Color { Color("TextSecondary") }
+    static var textTertiary: Color { Color("TextTertiary") }
+    
+    // Adaptive UI Colors
+    static var border: Color { Color("Border") }
+    static var lightGreen: Color { Color("LightGreen") }
+    static var shadowColor: Color { Color("ShadowColor") }
+    
+    // Accent Colors (slightly adjusted for dark mode vibrancy)
     static let ratingYellow = Color(hex: "F7D44C")
     static let accentBlue = Color(hex: "4285F4")
     static let accentViolet = Color(hex: "A788FF")
     static let softRed = Color(hex: "E4574D")
     
-    // Backgrounds
-    static let background = Color(hex: "F7F7F7")
-    static let cardBackground = Color(hex: "FFFFFF")
-    static let border = Color(hex: "E4E4E4")
-    
-    // Text
-    static let textPrimary = Color(hex: "1A1A1A")
-    static let textSecondary = Color(hex: "6B6B6B")
+    // Status Colors
+    static let success = Color(hex: "34C759")
+    static let warning = Color(hex: "FF9500")
+    static let error = Color(hex: "FF3B30")
     
     // Legacy support (mapping to new colors)
-    static let accent = primary
-    static let softAccent = lightGreen
-    static let controlBackground = cardBackground
-    static let separator = border
+    static var accent: Color { primary }
+    static var softAccent: Color { lightGreen }
+    static var controlBackground: Color { cardBackground }
+    static var separator: Color { border }
     
     // MARK: - Typography (Nohemi Font Family)
     
@@ -109,13 +122,20 @@ extension Color {
 
 // MARK: - View Modifiers
 struct AppCardModifier: ViewModifier {
+    @Environment(\.colorScheme) var colorScheme
+    
     func body(content: Content) -> some View {
         content
             .padding(20)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(AppTheme.cardBackground)
-                    .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+                    .shadow(color: AppTheme.shadowColor, radius: 10, x: 0, y: 4)
+            )
+            .overlay(
+                // Subtle border in dark mode for better card definition
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(colorScheme == .dark ? AppTheme.border : Color.clear, lineWidth: 1)
             )
     }
 }

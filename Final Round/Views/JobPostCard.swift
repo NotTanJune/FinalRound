@@ -12,7 +12,7 @@ struct JobPostCard: View {
                     .frame(width: 40, height: 40)
                     .background(AppTheme.cardBackground)
                     .cornerRadius(10)
-                    .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 3)
+                    .shadow(color: AppTheme.shadowColor, radius: 6, x: 0, y: 3)
                 
                     Text(job.role)
                         .font(AppTheme.font(size: 16, weight: .semibold))
@@ -62,7 +62,7 @@ struct JobPostCard: View {
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(AppTheme.cardBackground)
-                .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+                .shadow(color: AppTheme.shadowColor, radius: 10, x: 0, y: 4)
         )
     }
 }
