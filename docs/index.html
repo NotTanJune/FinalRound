@@ -3,158 +3,893 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Final Round - AI Interview Coach</title>
+    <title>Final Round - AI-Powered Interview Coach</title>
+    <meta name="description" content="Transform your iPhone into a personal interview coach. Get real-time feedback on eye contact, speaking pace, and confidence using Apple's Neural Engine.">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+        }
+        
+        :root {
+            --primary: #2E7D32;
+            --primary-light: #4CAF50;
+            --primary-dark: #1B5E20;
+            --accent: #66BB6A;
+            --bg-light: #F1F8F4;
+            --text-dark: #1a1a1a;
+            --text-gray: #666;
+            --text-light: #999;
+            --white: #ffffff;
+            --shadow: rgba(0, 0, 0, 0.1);
+            --shadow-strong: rgba(46, 125, 50, 0.2);
+        }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #E8F5E9 0%, #ffffff 100%);
-            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--white);
+            color: var(--text-dark);
+            line-height: 1.6;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+        }
+        
+        /* Smooth Scrolling */
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+        
+        /* Header/Navigation */
+        .header {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 10px var(--shadow);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        
+        nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .nav-logo {
             display: flex;
             align-items: center;
-            justify-content: center;
-        }
-        .container {
-            text-align: center;
-            padding: 40px 20px;
-            max-width: 600px;
-        }
-        .logo {
-            width: 120px;
-            height: 120px;
-            background: linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%);
-            border-radius: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 30px;
-            box-shadow: 0 10px 40px rgba(46, 125, 50, 0.3);
-        }
-        .logo-icon {
-            font-size: 60px;
-        }
-        h1 {
-            font-size: 42px;
+            gap: 12px;
+            font-size: 24px;
             font-weight: 700;
-            color: #1a1a1a;
-            margin-bottom: 12px;
+            color: var(--primary);
+            text-decoration: none;
         }
-        .tagline {
-            font-size: 20px;
-            color: #666;
+        
+        .nav-logo img {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 30px;
+            list-style: none;
+        }
+        
+        .nav-links a {
+            color: var(--text-dark);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+        
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+        
+        /* Hero Section */
+        .hero {
+            margin-top: 80px;
+            padding: 80px 40px;
+            background: linear-gradient(135deg, #E8F5E9 0%, #F1F8F4 50%, var(--white) 100%);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+        }
+        
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(76, 175, 80, 0.1) 0%, transparent 70%);
+            animation: float 20s infinite ease-in-out;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(-50px, -50px) scale(1.1); }
+        }
+        
+        .hero-content {
+            max-width: 900px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .app-icon {
+            width: 140px;
+            height: 140px;
+            margin: 0 auto 30px;
+            border-radius: 32px;
+            box-shadow: 0 20px 60px var(--shadow-strong);
+            animation: fadeInUp 0.8s ease;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .hero h1 {
+            font-size: 56px;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 20px;
+            line-height: 1.2;
+            animation: fadeInUp 0.8s ease 0.2s both;
+        }
+        
+        .hero-tagline {
+            font-size: 24px;
+            color: var(--text-gray);
             margin-bottom: 40px;
+            animation: fadeInUp 0.8s ease 0.4s both;
         }
-        .app-store-badge {
-            display: inline-block;
+        
+        .hero-stats {
+            display: flex;
+            justify-content: center;
+            gap: 50px;
             margin-bottom: 40px;
-            transition: opacity 0.2s ease;
+            flex-wrap: wrap;
+            animation: fadeInUp 0.8s ease 0.6s both;
         }
-        .app-store-badge:hover {
-            opacity: 0.8;
+        
+        .stat {
+            text-align: center;
         }
-        .app-store-badge img {
-            height: 50px;
-            width: auto;
+        
+        .stat-number {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--primary);
+            display: block;
         }
-        .links {
+        
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-gray);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .cta-buttons {
             display: flex;
             gap: 20px;
             justify-content: center;
             flex-wrap: wrap;
+            animation: fadeInUp 0.8s ease 0.8s both;
         }
-        .links a {
-            color: #2E7D32;
+        
+        .btn-primary {
+            display: inline-block;
+            padding: 0;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
+        
+        .btn-primary img {
+            height: 60px;
+            width: auto;
+        }
+        
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 32px;
+            background: var(--white);
+            color: var(--primary);
+            border: 2px solid var(--primary);
+            border-radius: 12px;
+            font-weight: 600;
             text-decoration: none;
-            font-size: 14px;
-            font-weight: 500;
+            transition: all 0.2s ease;
         }
-        .links a:hover {
-            text-decoration: underline;
+        
+        .btn-secondary:hover {
+            background: var(--primary);
+            color: var(--white);
+            transform: translateY(-2px);
         }
-        .features {
-            margin-top: 50px;
-            text-align: left;
-            background: white;
-            padding: 30px;
+        
+        /* Section Styles */
+        section {
+            padding: 80px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .section-header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        
+        .section-tag {
+            display: inline-block;
+            padding: 8px 16px;
+            background: var(--bg-light);
+            color: var(--primary);
             border-radius: 20px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        }
-        .features h2 {
-            font-size: 20px;
-            margin-bottom: 20px;
-            color: #1a1a1a;
-        }
-        .feature {
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
             margin-bottom: 16px;
         }
+        
+        .section-title {
+            font-size: 42px;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 16px;
+        }
+        
+        .section-subtitle {
+            font-size: 18px;
+            color: var(--text-gray);
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        /* Features Grid */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+        
+        .feature-card {
+            background: var(--white);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px var(--shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px var(--shadow-strong);
+        }
+        
         .feature-icon {
-            font-size: 24px;
+            font-size: 48px;
+            margin-bottom: 20px;
+            display: block;
         }
-        .feature-text h3 {
+        
+        .feature-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 12px;
+        }
+        
+        .feature-description {
             font-size: 16px;
-            color: #1a1a1a;
-            margin-bottom: 4px;
+            color: var(--text-gray);
+            line-height: 1.6;
         }
-        .feature-text p {
+        
+        /* ARM Optimization Section */
+        .arm-section {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+            color: var(--white);
+            border-radius: 30px;
+            padding: 60px;
+            margin: 80px auto;
+        }
+        
+        .arm-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 40px;
+        }
+        
+        .arm-stat {
+            text-align: center;
+            min-width: 250px;
+            flex: 0 1 250px;
+        }
+        
+        .arm-stat-value {
+            font-size: 48px;
+            font-weight: 800;
+            color: var(--accent);
+            display: block;
+            margin-bottom: 10px;
+        }
+        
+        .arm-stat-label {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .tech-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        
+        .tech-badge {
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
             font-size: 14px;
-            color: #666;
+            font-weight: 600;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* How It Works */
+        .how-it-works {
+            background: var(--bg-light);
+            border-radius: 30px;
+            padding: 60px;
+        }
+        
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 40px;
+            margin-top: 40px;
+        }
+        
+        .step {
+            text-align: center;
+            position: relative;
+        }
+        
+        .step-number {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: var(--white);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0 auto 20px;
+            box-shadow: 0 4px 15px var(--shadow-strong);
+        }
+        
+        .step-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--text-dark);
+        }
+        
+        .step-description {
+            font-size: 14px;
+            color: var(--text-gray);
+        }
+        
+        /* Screenshots Section */
+        .screenshots {
+            text-align: center;
+        }
+        
+        .screenshots-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+            margin: 40px auto;
+            max-width: 1200px;
+            flex-wrap: wrap;
+            padding: 20px;
+        }
+        
+        .screenshot-wrapper {
+            position: relative;
+            width: 280px;
+            transition: transform 0.3s ease;
+        }
+        
+        .screenshot-wrapper:hover {
+            transform: translateY(-10px);
+        }
+        
+        .screenshot {
+            width: 100%;
+            height: auto;
+            border-radius: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            border: 12px solid #1a1a1a;
+            background: #1a1a1a;
+            display: block;
+        }
+        
+        .screenshot-wrapper::before {
+            content: '';
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 25px;
+            background: #1a1a1a;
+            border-radius: 0 0 20px 20px;
+            z-index: 1;
+        }
+        
+        .screenshot-wrapper::after {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 50px;
+            height: 6px;
+            background: #333;
+            border-radius: 10px;
+            z-index: 2;
+        }
+        
+        /* Footer */
+        footer {
+            background: var(--text-dark);
+            color: var(--white);
+            padding: 60px 40px 30px;
+            text-align: center;
+        }
+        
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .footer-links a {
+            color: var(--white);
+            text-decoration: none;
+            font-size: 14px;
+            transition: opacity 0.2s ease;
+        }
+        
+        .footer-links a:hover {
+            opacity: 0.7;
+        }
+        
+        .footer-copyright {
+            font-size: 14px;
+            opacity: 0.7;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            nav {
+                padding: 15px 20px;
+            }
+            
+            .nav-links {
+                display: none;
+            }
+            
+            .nav-logo {
+                font-size: 20px;
+            }
+            
+            .nav-logo img {
+                width: 32px;
+                height: 32px;
+            }
+            
+            .hero {
+                padding: 60px 20px;
+                margin-top: 70px;
+            }
+            
+            .app-icon {
+                width: 100px;
+                height: 100px;
+            }
+            
+            .hero h1 {
+                font-size: 36px;
+            }
+            
+            .hero-tagline {
+                font-size: 18px;
+            }
+            
+            .hero-stats {
+                gap: 20px;
+                flex-direction: column;
+            }
+            
+            .stat-number {
+                font-size: 28px;
+            }
+            
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn-primary img {
+                height: 50px;
+            }
+            
+            section {
+                padding: 60px 20px;
+            }
+            
+            .section-title {
+                font-size: 28px;
+            }
+            
+            .section-subtitle {
+                font-size: 16px;
+            }
+            
+            .feature-card {
+                padding: 30px 20px;
+            }
+            
+            .feature-title {
+                font-size: 20px;
+            }
+            
+            .feature-description {
+                font-size: 15px;
+            }
+            
+            .arm-section {
+                padding: 40px 20px;
+                margin: 60px 20px;
+                border-radius: 20px;
+            }
+            
+            .arm-stat {
+                min-width: 200px;
+            }
+            
+            .arm-stat-value {
+                font-size: 40px;
+            }
+            
+            .arm-stat-label {
+                font-size: 14px;
+            }
+            
+            .how-it-works {
+                padding: 40px 20px;
+                border-radius: 20px;
+            }
+            
+            .step-number {
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
+            }
+            
+            .step-title {
+                font-size: 16px;
+            }
+            
+            .step-description {
+                font-size: 13px;
+            }
+            
+            .screenshots-container {
+                gap: 20px;
+                padding: 10px;
+            }
+            
+            .screenshot-wrapper {
+                width: 240px;
+            }
+            
+            .features-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .steps {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+            
+            footer {
+                padding: 40px 20px 20px;
+            }
+            
+            .footer-links {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .hero h1 {
+                font-size: 28px;
+            }
+            
+            .hero-tagline {
+                font-size: 16px;
+            }
+            
+            .section-title {
+                font-size: 24px;
+            }
+            
+            .arm-stat-value {
+                font-size: 32px;
+            }
+            
+            .screenshot-wrapper {
+                width: 200px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="logo">
-            <span class="logo-icon">🎯</span>
+    <!-- Header -->
+    <header class="header">
+        <nav>
+            <a href="#" class="nav-logo">
+                <img src="../Final Round Icon.png" alt="Final Round Icon">
+                <span>Final Round</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#arm-optimization">Technology</a></li>
+                <li><a href="#how-it-works">How It Works</a></li>
+                <li><a href="#download">Download</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <img src="../Final Round Icon.png" alt="Final Round App Icon" class="app-icon">
+            <h1>Your AI Interview Coach</h1>
+            <p class="hero-tagline">Transform your iPhone into a personal interview coach with real-time feedback on eye contact, speaking pace, and confidence.</p>
+            
+            <div class="hero-stats">
+                <div class="stat">
+                    <span class="stat-number">Sub-10ms</span>
+                    <span class="stat-label">Latency</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number">6x</span>
+                    <span class="stat-label">Battery Efficiency</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number">100%</span>
+                    <span class="stat-label">On-Device AI</span>
+                </div>
+            </div>
+            
+            <div class="cta-buttons" id="download">
+                <a href="https://apps.apple.com/sg/app/finalround-ai/id6755817745" class="btn-primary" target="_blank" rel="noopener noreferrer">
+                    <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store">
+                </a>
+                <a href="#features" class="btn-secondary">
+                    <span>Learn More</span>
+                    <span>↓</span>
+                </a>
+            </div>
         </div>
-        <h1>Final Round</h1>
-        <p class="tagline">AI-Powered Interview Practice Coach</p>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features">
+        <div class="section-header">
+            <span class="section-tag">Features</span>
+            <h2 class="section-title">Everything You Need to Ace Your Interview</h2>
+            <p class="section-subtitle">Practice with AI-powered feedback across multiple dimensions of interview performance</p>
+        </div>
         
-        <a href="https://apps.apple.com/sg/app/finalround-ai/id6755817745" class="app-store-badge" target="_blank" rel="noopener noreferrer">
-            <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store">
-        </a>
-        
-        <div class="features">
-            <h2>Features</h2>
-            <div class="feature">
+        <div class="features-grid">
+            <div class="feature-card">
+                <span class="feature-icon">👁️</span>
+                <h3 class="feature-title">Real-Time Eye Contact Tracking</h3>
+                <p class="feature-description">Leverage ARKit and Vision framework to track your gaze with sub-10ms latency. Get instant feedback on eye contact percentage during your practice sessions.</p>
+            </div>
+            
+            <div class="feature-card">
                 <span class="feature-icon">🎙️</span>
-                <div class="feature-text">
-                    <h3>Real Interview Practice</h3>
-                    <p>Record your responses and get AI-powered feedback</p>
-                </div>
+                <h3 class="feature-title">Speech & Tone Analysis</h3>
+                <p class="feature-description">Analyze speaking pace, pauses, volume variation, and filler words. Uses ARM NEON SIMD for 5.6x faster audio processing with 40% lower power consumption.</p>
             </div>
-            <div class="feature">
+            
+            <div class="feature-card">
                 <span class="feature-icon">🤖</span>
-                <div class="feature-text">
-                    <h3>AI-Generated Questions</h3>
-                    <p>Personalized questions based on your target role</p>
-                </div>
+                <h3 class="feature-title">AI-Generated Questions</h3>
+                <p class="feature-description">Powered by Groq's GPT-OSS 20B model, get personalized interview questions tailored to your target role, experience level, and chosen categories.</p>
             </div>
-            <div class="feature">
+            
+            <div class="feature-card">
                 <span class="feature-icon">📊</span>
-                <div class="feature-text">
-                    <h3>Track Your Progress</h3>
-                    <p>Analytics and insights to improve over time</p>
-                </div>
+                <h3 class="feature-title">Confidence Scoring</h3>
+                <p class="feature-description">Multi-modal analysis combining eye contact, speech patterns, sentiment, and delivery into a unified confidence score (1-10) for each response.</p>
             </div>
-            <div class="feature">
+            
+            <div class="feature-card">
+                <span class="feature-icon">📈</span>
+                <h3 class="feature-title">Performance Analytics</h3>
+                <p class="feature-description">Track your progress over time with detailed session summaries, performance charts, and personalized improvement suggestions powered by AI.</p>
+            </div>
+            
+            <div class="feature-card">
                 <span class="feature-icon">💼</span>
-                <div class="feature-text">
-                    <h3>Job Discovery</h3>
-                    <p>Find relevant opportunities in your area</p>
+                <h3 class="feature-title">Job Discovery</h3>
+                <p class="feature-description">Find relevant job opportunities based on your profile and skills. Parse LinkedIn job postings to generate targeted interview prep questions.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ARM Optimization Section -->
+    <section id="arm-optimization">
+        <div class="arm-section">
+            <div class="section-header">
+                <span class="section-tag" style="background: rgba(255,255,255,0.2); color: var(--white);">Powered by ARM</span>
+                <h2 class="section-title" style="color: var(--white);">Built for Apple Silicon</h2>
+                <p class="section-subtitle" style="color: rgba(255,255,255,0.9);">
+                    Final Round leverages Apple's Neural Engine, ARKit TrueDepth camera, and ARM NEON SIMD instructions to deliver desktop-class AI performance with mobile-class battery efficiency.
+                </p>
+            </div>
+            
+            <div class="arm-grid">
+                <div class="arm-stat">
+                    <span class="arm-stat-value">8ms</span>
+                    <span class="arm-stat-label">Face Detection (Neural Engine)</span>
+                </div>
+                <div class="arm-stat">
+                    <span class="arm-stat-value">5ms</span>
+                    <span class="arm-stat-label">Audio Analysis (NEON SIMD)</span>
+                </div>
+                <div class="arm-stat">
+                    <span class="arm-stat-value">2-4%</span>
+                    <span class="arm-stat-label">Battery per 30min Session</span>
+                </div>
+                <div class="arm-stat">
+                    <span class="arm-stat-value">30 FPS</span>
+                    <span class="arm-stat-label">Real-Time Face Tracking</span>
+                </div>
+            </div>
+            
+            <div class="tech-badges">
+                <span class="tech-badge">Neural Engine</span>
+                <span class="tech-badge">ARKit</span>
+                <span class="tech-badge">Vision Framework</span>
+                <span class="tech-badge">Accelerate (NEON)</span>
+                <span class="tech-badge">CoreML</span>
+                <span class="tech-badge">SwiftUI</span>
+                <span class="tech-badge">Groq API</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section id="how-it-works">
+        <div class="how-it-works">
+            <div class="section-header">
+                <span class="section-tag">How It Works</span>
+                <h2 class="section-title">Start Practicing in Minutes</h2>
+            </div>
+            
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3 class="step-title">Set Your Profile</h3>
+                    <p class="step-description">Enter your target role, experience level, and preferred question categories</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3 class="step-title">Get AI Questions</h3>
+                    <p class="step-description">Receive personalized interview questions generated by Groq's AI</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3 class="step-title">Practice & Record</h3>
+                    <p class="step-description">Answer questions while the app tracks your eye contact and speech patterns</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h3 class="step-title">Review Feedback</h3>
+                    <p class="step-description">Get detailed analytics, confidence scores, and improvement suggestions</p>
                 </div>
             </div>
         </div>
-        
-        <div class="links" style="margin-top: 30px;">
-            <a href="privacy-policy.html">Privacy Policy</a>
-            <a href="support.html">Support</a>
+    </section>
+
+    <!-- Screenshots Section -->
+    <section class="screenshots">
+        <div class="section-header">
+            <span class="section-tag">App Preview</span>
+            <h2 class="section-title">See It In Action</h2>
         </div>
         
-        <p style="margin-top: 40px; font-size: 12px; color: #999;">© 2025 Final Round. All rights reserved.</p>
-    </div>
+        <div class="screenshots-container">
+            <div class="screenshot-wrapper">
+                <img src="screenshot1.png" alt="Interview Session View" class="screenshot">
+            </div>
+            <div class="screenshot-wrapper">
+                <img src="screenshot3.png" alt="Session Results" class="screenshot">
+            </div>
+            <div class="screenshot-wrapper">
+                <img src="screenshot4.png" alt="Session Results" class="screenshot">
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-links">
+                <a href="privacy-policy.html">Privacy Policy</a>
+                <a href="support.html">Support</a>
+                <a href="https://github.com/NotTanJune/FinalRound" target="_blank">GitHub</a>
+                <a href="https://apps.apple.com/sg/app/finalround-ai/id6755817745" target="_blank">App Store</a>
+            </div>
+            <p class="footer-copyright">© 2025 Final Round. All rights reserved. Built with ❤️ for Apple Silicon.</p>
+        </div>
+    </footer>
 </body>
 </html>
 
