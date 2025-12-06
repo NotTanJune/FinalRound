@@ -130,7 +130,7 @@ struct IdentityStepView: View {
                 .background(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .fill(AppTheme.cardBackground)
-                        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+                        .shadow(color: AppTheme.shadowColor, radius: 10, x: 0, y: 4)
                 )
                 
                 Spacer()
@@ -250,7 +250,7 @@ struct SkillsStepView: View {
                     .background(
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
                             .fill(AppTheme.cardBackground)
-                            .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+                            .shadow(color: AppTheme.shadowColor, radius: 10, x: 0, y: 4)
                     )
                 }
                 
@@ -368,7 +368,7 @@ struct PhotoStepView: View {
                 .background(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .fill(AppTheme.cardBackground)
-                        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+                        .shadow(color: AppTheme.shadowColor, radius: 10, x: 0, y: 4)
                 )
                 
                 Spacer()

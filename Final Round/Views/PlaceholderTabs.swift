@@ -281,9 +281,9 @@ struct SessionCard: View {
                 }
             }
             .padding(16)
-            .background(Color.white)
+            .background(AppTheme.cardBackground)
             .cornerRadius(16)
-            .shadow(color: Color.black.opacity(0.05), radius: 8, y: 4)
+            .shadow(color: AppTheme.shadowColor, radius: 8, y: 4)
         }
         .buttonStyle(.plain)
     }
@@ -505,6 +505,9 @@ struct ProfileView: View {
     
     private var accountActions: some View {
         VStack(spacing: 24) {
+            // Appearance Section
+            AppearanceSettingsSection()
+            
             // Tutorials Section
             VStack(alignment: .leading, spacing: 12) {
                 Text("Tutorials")
@@ -522,8 +525,8 @@ struct ProfileView: View {
             // Account Actions
         VStack(spacing: 12) {
             changePasswordButton
-            deleteAccountButton
             signOutButton
+            deleteAccountButton
             }
         }
     }
@@ -542,7 +545,7 @@ struct ProfileView: View {
             .font(AppTheme.font(size: 16, weight: .medium))
             .foregroundStyle(AppTheme.textPrimary)
             .padding()
-            .background(Color.white)
+            .background(AppTheme.cardBackground)
             .cornerRadius(12)
         }
     }
@@ -555,13 +558,11 @@ struct ProfileView: View {
                 Image(systemName: "trash")
                 Text("Delete Account")
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(AppTheme.font(size: 14, weight: .semibold))
             }
             .font(AppTheme.font(size: 16, weight: .medium))
             .foregroundStyle(.red)
             .padding()
-            .background(Color.white)
+            .background(AppTheme.cardBackground)
             .cornerRadius(12)
         }
     }
@@ -575,7 +576,7 @@ struct ProfileView: View {
                 .foregroundStyle(.red)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.white)
+                .background(AppTheme.cardBackground)
                 .cornerRadius(12)
         }
     }

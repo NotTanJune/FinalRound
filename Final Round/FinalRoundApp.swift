@@ -4,14 +4,20 @@ import Combine
 @main
 struct FinalRoundApp: App {
     @StateObject private var appState = AppState()
+    @StateObject private var appearanceManager = AppearanceManager.shared
     
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(appState)
-                .environmentObject(appState.tutorialManager)
-                .preferredColorScheme(.light)
+                .environmentObject(tutorialManager)
+                .environmentObject(appearanceManager)
+                .preferredColorScheme(appearanceManager.colorScheme)
         }
+    }
+    
+    private var tutorialManager: TutorialManager {
+        appState.tutorialManager
     }
 }
 
