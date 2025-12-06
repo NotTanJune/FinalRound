@@ -4,23 +4,178 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Final Round - Privacy Policy</title>
+    <link rel="icon" type="image/png" href="Final Round Icon.png">
+    <link rel="apple-touch-icon" href="Final Round Icon.png">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #E8F5E9 0%, #F1F8F4 50%, #ffffff 100%);
+            min-height: 100vh;
+            color: #1a1a1a;
+            line-height: 1.7;
             padding: 40px 20px;
-            line-height: 1.6;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            border-radius: 18px;
+            box-shadow: 0 10px 30px rgba(46, 125, 50, 0.3);
+            display: block;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #2E7D32;
+            text-decoration: none;
+            font-weight: 600;
+            transition: opacity 0.2s ease;
+        }
+        
+        .back-link:hover {
+            opacity: 0.7;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 50px;
+            border-radius: 24px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #2E7D32;
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+        
+        .last-updated {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 40px;
+            display: block;
+        }
+        
+        h2 {
+            color: #2E7D32;
+            font-size: 24px;
+            font-weight: 600;
+            margin-top: 40px;
+            margin-bottom: 16px;
+        }
+        
+        h3 {
+            color: #1a1a1a;
+            font-size: 18px;
+            font-weight: 600;
+            margin-top: 24px;
+            margin-bottom: 12px;
+        }
+        
+        h4 {
+            color: #333;
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        
+        p {
+            margin-bottom: 16px;
             color: #333;
         }
-        h1 { color: #1a1a1a; border-bottom: 2px solid #2E7D32; padding-bottom: 10px; }
-        h2 { color: #2E7D32; margin-top: 30px; }
-        .last-updated { color: #666; font-size: 14px; }
+        
+        ul {
+            margin-bottom: 20px;
+            padding-left: 30px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        a {
+            color: #2E7D32;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        strong {
+            color: #1a1a1a;
+            font-weight: 600;
+        }
+        
+        hr {
+            border: none;
+            border-top: 1px solid #e0e0e0;
+            margin: 40px 0;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 20px 10px;
+            }
+            
+            .container {
+                padding: 30px 20px;
+                border-radius: 16px;
+            }
+            
+            h1 {
+                font-size: 28px;
+            }
+            
+            h2 {
+                font-size: 20px;
+            }
+            
+            h3 {
+                font-size: 16px;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Privacy Policy for Final Round</h1>
-    <p class="last-updated">Last Updated: November 27, 2025</p>
+    <div class="header">
+        <img src="Final Round Icon.png" alt="Final Round Icon" class="logo">
+        <a href="index.html" class="back-link">← Back to Home</a>
+    </div>
+    
+    <div class="container">
+        <h1>Privacy Policy</h1>
+        <span class="last-updated">Last Updated: November 27, 2025</span>
 
     <h2>Introduction</h2>
     <p>Final Round ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard your information when you use our mobile application.</p>
@@ -135,8 +290,12 @@
     <p>If you have questions about this Privacy Policy, please contact us at:</p>
     <p>Email: <a href="mailto:tanmaynargas291@gmail.com">tanmaynargas291@gmail.com</a></p>
 
-    <hr style="margin-top: 40px;">
-    <p style="font-size: 12px; color: #666;">© 2025 Final Round. All rights reserved.</p>
+    <hr>
+    <div class="footer">
+        <p><a href="index.html">Home</a> | <a href="support.html">Support</a></p>
+        <p style="margin-top: 10px;">© 2025 Final Round. All rights reserved.</p>
+    </div>
+    </div>
 </body>
 </html>
 
