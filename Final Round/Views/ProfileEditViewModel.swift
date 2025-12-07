@@ -21,6 +21,19 @@ class ProfileEditViewModel: ObservableObject {
     @Published var locationValidationError: String?
     @Published var customSkillValidationError: String?
     
+    // Location suggestions
+    @Published var locationSuggestions: [LocationService.LocationInfo] = []
+    @Published var showLocationSuggestions = false
+    @Published var isSearchingLocation = false
+    @Published var isLocationLocked = false  // True after a location is selected, prevents further suggestions
+    
+    // Track if a job cache refresh is needed
+    @Published var needsJobCacheRefresh = false
+    
+    private let locationService = LocationService.shared
+    private var locationDebounceTask: Task<Void, Never>?
+    private var cancellables = Set<AnyCancellable>()
+    
     init(profile: UserProfile) {
         self.originalProfile = profile
         self.fullName = profile.fullName
@@ -29,6 +42,37 @@ class ProfileEditViewModel: ObservableObject {
         self.selectedSkills = Set(profile.skills)
         self.location = profile.location ?? ""
         self.currency = profile.currency ?? "USD"
+        
+        // Lock location if it's already set (user has previously selected one)
+        self.isLocationLocked = !(profile.location ?? "").isEmpty
+        
+        // Observe LocationService updates
+        setupLocationObservers()
+    }
+    
+    private func setupLocationObservers() {
+        // Observe suggestions from LocationService
+        locationService.$suggestions
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] suggestions in
+                guard let self = self else { return }
+                // Only show suggestions if location is not locked
+                guard !self.isLocationLocked else {
+                    self.locationSuggestions = []
+                    self.showLocationSuggestions = false
+                    return
+                }
+                self.locationSuggestions = suggestions
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    self.showLocationSuggestions = !suggestions.isEmpty
+                }
+            }
+            .store(in: &cancellables)
+        
+        // Observe search state
+        locationService.$isSearching
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isSearchingLocation)
     }
     
     var canSave: Bool {
@@ -60,6 +104,18 @@ class ProfileEditViewModel: ObservableObject {
                selectedSkills != Set(originalProfile.skills) ||
                trimmedLocation != (originalProfile.location ?? "") ||
                currency != (originalProfile.currency ?? "USD")
+    }
+    
+    /// Check if changes affect job recommendations (location, role, experience, skills, currency)
+    var hasJobRelevantChanges: Bool {
+        let trimmedRole = targetRole.trimmingCharacters(in: .whitespaces)
+        let trimmedLocation = location.trimmingCharacters(in: .whitespaces)
+        
+        return trimmedRole != originalProfile.targetRole ||
+               experienceLevel?.rawValue != originalProfile.yearsOfExperience ||
+               trimmedLocation != (originalProfile.location ?? "") ||
+               currency != (originalProfile.currency ?? "USD") ||
+               selectedSkills != Set(originalProfile.skills)
     }
     
     var canAddCustomSkill: Bool {
@@ -120,13 +176,102 @@ class ProfileEditViewModel: ObservableObject {
         let trimmed = customSkill.trimmingCharacters(in: .whitespaces)
         guard canAddCustomSkill else { return }
         
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+        withAnimation(Animation.spring(response: 0.3, dampingFraction: 0.7)) {
             selectedSkills.insert(trimmed)
             customSkill = ""
             customSkillValidationError = nil
         }
         
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+    
+    // MARK: - Location Auto-Complete
+    
+    /// Called when location text changes - debounces and fetches suggestions
+    func onLocationChanged() {
+        validateLocation()
+        
+        // If location is locked, don't search for suggestions
+        // This happens after a location is selected
+        guard !isLocationLocked else {
+            return
+        }
+        
+        // Cancel existing debounce task
+        locationDebounceTask?.cancel()
+        
+        let trimmed = location.trimmingCharacters(in: .whitespaces)
+        
+        // Hide suggestions and clear if empty
+        guard !trimmed.isEmpty else {
+            locationService.clearSuggestions()
+            showLocationSuggestions = false
+            return
+        }
+        
+        // Debounce for 400ms to avoid too many API calls
+        locationDebounceTask = Task {
+            try? await Task.sleep(nanoseconds: 400_000_000) // 0.4s
+            
+            guard !Task.isCancelled else { return }
+            
+            await locationService.searchLocations(query: trimmed)
+        }
+    }
+    
+    /// Select a location from suggestions - this locks the location input
+    func selectLocation(_ locationInfo: LocationService.LocationInfo) {
+        // Cancel any pending searches
+        locationDebounceTask?.cancel()
+        locationService.clearSuggestions()
+        
+        withAnimation(Animation.spring(response: 0.3, dampingFraction: 0.7)) {
+            self.location = locationInfo.fullLocation
+            self.currency = locationInfo.currency  // Use the actual currency from the country
+            self.showLocationSuggestions = false
+            self.locationSuggestions = []
+            self.isLocationLocked = true  // Lock to prevent further suggestions
+        }
+        
+        validateLocation()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        
+        SecureLogger.info("Selected location: \(locationInfo.fullLocation), currency: \(currency)", category: .database)
+    }
+    
+    /// Unlock the location field to allow editing again
+    func unlockLocation() {
+        isLocationLocked = false
+        location = ""  // Clear to start fresh
+        currency = "USD"  // Reset to default
+        locationService.clearSuggestions()
+    }
+    
+    /// Try to infer country and currency from current location input
+    func inferLocationDetails() {
+        let trimmed = location.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        
+        Task {
+            if let locationInfo = await locationService.inferLocation(from: trimmed) {
+                await MainActor.run {
+                    withAnimation(Animation.spring(response: 0.3, dampingFraction: 0.7)) {
+                        self.location = locationInfo.fullLocation
+                        self.currency = locationInfo.currency  // Use the actual currency
+                    }
+                }
+                
+                SecureLogger.info("Inferred location: \(locationInfo.fullLocation), currency: \(currency)", category: .database)
+            }
+        }
+    }
+    
+    /// Hide location suggestions (e.g., when tapping outside)
+    func hideLocationSuggestions() {
+        withAnimation(.easeInOut(duration: 0.15)) {
+            showLocationSuggestions = false
+        }
+        locationService.clearSuggestions()
     }
     
     // MARK: - Save
@@ -136,6 +281,9 @@ class ProfileEditViewModel: ObservableObject {
         
         isSaving = true
         saveError = nil
+        
+        // Determine if we need to refresh job cache before saving
+        let shouldRefreshJobs = hasJobRelevantChanges
         
         do {
             // Sanitize inputs
@@ -158,15 +306,33 @@ class ProfileEditViewModel: ObservableObject {
             SecureLogger.info("Profile updated successfully", category: .database)
             
             // Update AppState preloaded profile to reflect changes
-            if let appState = appState, var preloadedProfile = appState.preloadedProfile {
-                self.preloadedProfile.fullName = sanitizedName
-                self.preloadedProfile.targetRole = sanitizedRole
-                self.preloadedProfile.yearsOfExperience = experienceLevel?.rawValue ?? "Mid Level"
-                self.preloadedProfile.skills = sanitizedSkills
-                self.preloadedProfile.location = sanitizedLocation
-                self.preloadedProfile.currency = currency
-                self.preloadedProfile.updatedAt = Date()
-                appState.preloadedProfile = preloadedProfile
+            if let appState = appState, let existingProfile = appState.preloadedProfile {
+                let updatedProfile = UserProfile(
+                    id: existingProfile.id,
+                    fullName: sanitizedName,
+                    targetRole: sanitizedRole,
+                    yearsOfExperience: experienceLevel?.rawValue ?? "Mid Level",
+                    skills: sanitizedSkills,
+                    avatarURL: existingProfile.avatarURL,
+                    location: sanitizedLocation,
+                    currency: currency,
+                    updatedAt: Date()
+                )
+                appState.preloadedProfile = updatedProfile
+                
+                // If job-relevant fields changed, clear the job cache and trigger refresh
+                if shouldRefreshJobs {
+                    SecureLogger.info("Job-relevant profile changes detected, invalidating job cache", category: .database)
+                    
+                    // Clear cached jobs for this user
+                    JobCache.shared.clearCache(for: existingProfile.id)
+                    
+                    // Clear preloaded jobs to trigger refresh on HomeView
+                    appState.preloadedRecommendedJobs = []
+                    
+                    // Set flag to indicate cache was invalidated
+                    self.needsJobCacheRefresh = true
+                }
             }
             
             await MainActor.run {
