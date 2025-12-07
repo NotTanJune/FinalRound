@@ -340,6 +340,7 @@ struct ProfileView: View {
     @State private var showingChangePassword = false
     @State private var showingDeleteAccount = false
     @State private var showingImagePicker = false
+    @State private var showingEditProfile = false
     @State private var isUploadingImage = false
     @State private var isDeletingAccount = false
     @State private var deleteError: String?
@@ -386,10 +387,22 @@ struct ProfileView: View {
         } message: {
             Text("Are you sure you want to delete your account? This action cannot be undone.")
         }
-        .alert("Error", isPresented: $showDeleteError) {
+            .alert("Error", isPresented: $showDeleteError) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(deleteError ?? "Failed to delete account. Please try again.")
+        }
+        .sheet(isPresented: $showingEditProfile) {
+            if let profile = userProfile {
+                ProfileEditView(profile: profile)
+                    .environmentObject(appState)
+                    .onDisappear {
+                        // Reload profile after editing
+                        Task {
+                            await loadProfile()
+                        }
+                    }
+            }
         }
         .task {
             await loadProfile()
@@ -433,6 +446,7 @@ struct ProfileView: View {
         ScrollView {
             VStack(spacing: 24) {
                 profileHeader(profile: profile)
+                profileInfoSection(profile: profile)
                 accountActions
             }
             .padding(20)
@@ -455,8 +469,70 @@ struct ProfileView: View {
             Text(profile.targetRole)
                 .font(AppTheme.font(size: 16))
                 .foregroundStyle(AppTheme.textSecondary)
+            
+            // Edit Profile Button
+            Button {
+                showingEditProfile = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "pencil")
+                        .font(AppTheme.font(size: 13))
+                    Text("Edit Profile")
+                        .font(AppTheme.font(size: 14, weight: .medium))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(AppTheme.primary)
+                .cornerRadius(20)
+            }
         }
         .padding(.top, 20)
+    }
+    
+    private func profileInfoSection(profile: UserProfile) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Experience Level
+            InfoCard(icon: "chart.bar.fill", title: "Experience", value: profile.yearsOfExperience)
+            
+            // Location
+            if let location = profile.location, !location.isEmpty {
+                InfoCard(icon: "location.fill", title: "Location", value: location)
+            }
+            
+            // Currency
+            if let currency = profile.currency, !currency.isEmpty {
+                InfoCard(icon: "dollarsign.circle.fill", title: "Currency", value: currency)
+            }
+            
+            // Skills
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "star.fill")
+                        .font(AppTheme.font(size: 14))
+                        .foregroundStyle(AppTheme.primary)
+                    
+                    Text("Skills")
+                        .font(AppTheme.font(size: 16, weight: .semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                }
+                
+                FlowLayout(spacing: 8) {
+                    ForEach(profile.skills, id: \.self) { skill in
+                        Text(skill)
+                            .font(AppTheme.font(size: 14, weight: .medium))
+                            .foregroundStyle(AppTheme.primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(AppTheme.lightGreen)
+                            .cornerRadius(20)
+                    }
+                }
+            }
+            .padding()
+            .background(AppTheme.cardBackground)
+            .cornerRadius(12)
+        }
     }
     
     private func profileAvatarSection(profile: UserProfile) -> some View {
@@ -718,6 +794,37 @@ struct ProfileView: View {
                 isUploadingImage = false
             }
         }
+    }
+}
+
+// Info Card component for profile details
+struct InfoCard: View {
+    let icon: String
+    let title: String
+    let value: String
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(AppTheme.font(size: 16))
+                .foregroundStyle(AppTheme.primary)
+                .frame(width: 24)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(AppTheme.font(size: 12))
+                    .foregroundStyle(AppTheme.textSecondary)
+                
+                Text(value)
+                    .font(AppTheme.font(size: 15, weight: .medium))
+                    .foregroundStyle(AppTheme.textPrimary)
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .background(AppTheme.cardBackground)
+        .cornerRadius(12)
     }
 }
 
