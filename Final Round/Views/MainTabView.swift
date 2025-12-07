@@ -343,6 +343,59 @@ struct HomeView: View {
                     userProfile = profile
                 }
             }
+            // Detect profile changes that affect job recommendations
+            .onChange(of: appState.preloadedProfile?.targetRole) { oldRole, newRole in
+                guard let profile = appState.preloadedProfile else { return }
+                // If role changed and we have a loaded profile, refresh jobs
+                if oldRole != newRole {
+                    userProfile = profile
+                    Task {
+                        await loadRecommendedJobs(profile: profile, forceRefresh: true)
+                    }
+                }
+            }
+            .onChange(of: appState.preloadedProfile?.location) { oldLocation, newLocation in
+                guard let profile = appState.preloadedProfile else { return }
+                // If location changed, refresh jobs
+                if oldLocation != newLocation {
+                    userProfile = profile
+                    Task {
+                        await loadRecommendedJobs(profile: profile, forceRefresh: true)
+                    }
+                }
+            }
+            .onChange(of: appState.preloadedProfile?.currency) { oldCurrency, newCurrency in
+                guard let profile = appState.preloadedProfile else { return }
+                // If currency changed, refresh jobs  
+                if oldCurrency != newCurrency {
+                    userProfile = profile
+                    Task {
+                        await loadRecommendedJobs(profile: profile, forceRefresh: true)
+                    }
+                }
+            }
+            .onChange(of: appState.preloadedProfile?.skills) { oldSkills, newSkills in
+                guard let profile = appState.preloadedProfile else { return }
+                // If skills changed, refresh jobs
+                if oldSkills != newSkills {
+                    userProfile = profile
+                    Task {
+                        await loadRecommendedJobs(profile: profile, forceRefresh: true)
+                    }
+                }
+            }
+            // Detect when job cache is invalidated (preloadedRecommendedJobs cleared)
+            .onChange(of: appState.preloadedRecommendedJobs.count) { oldCount, newCount in
+                // If jobs were cleared (cache invalidated) and we have a profile, reload
+                if newCount == 0 && oldCount > 0 {
+                    if let profile = appState.preloadedProfile {
+                        userProfile = profile
+                        Task {
+                            await loadRecommendedJobs(profile: profile, forceRefresh: true)
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -352,11 +405,8 @@ struct HomeView: View {
         // Cancel any existing job loading task
         jobLoadingTask?.cancel()
         
-        // Clear cache to force fresh fetch
-        JobCache.shared.clearCache(for: profile.id)
-        
-        // Reload jobs
-        await loadRecommendedJobs(profile: profile)
+        // Reload jobs with force refresh (bypasses cache)
+        await loadRecommendedJobs(profile: profile, forceRefresh: true)
     }
     
     private func loadUserProfile() async {
@@ -408,19 +458,26 @@ struct HomeView: View {
         }
     }
     
-    private func loadRecommendedJobs(profile: UserProfile) async {
+    private func loadRecommendedJobs(profile: UserProfile, forceRefresh: Bool = false) async {
         // Cancel any existing job loading task
         jobLoadingTask?.cancel()
         
-        // Check cache first, but only if profile has location data
-        // This ensures old cached jobs without location filtering are refreshed
-        if let location = profile.location, !location.isEmpty,
-           let cached = JobCache.shared.getCachedJobs(for: profile.id) {
-            await MainActor.run {
-                self.recommendedJobs = cached
+        // Skip cache if forceRefresh is true (profile was updated)
+        if !forceRefresh {
+            // Check cache first, but only if profile has location data
+            // This ensures old cached jobs without location filtering are refreshed
+            if let location = profile.location, !location.isEmpty,
+               let cached = JobCache.shared.getCachedJobs(for: profile.id) {
+                await MainActor.run {
+                    self.recommendedJobs = cached
+                }
+                print("✅ Using cached jobs for location: \(location)")
+                return
             }
-            print("✅ Using cached jobs for location: \(location)")
-            return
+        } else {
+            // Force refresh - clear cache first
+            print("🔄 Force refreshing jobs due to profile change")
+            JobCache.shared.clearCache(for: profile.id)
         }
         
         // If no location in profile, clear any old cache to force refresh

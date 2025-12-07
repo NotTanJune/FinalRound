@@ -4,6 +4,7 @@ struct ProfileEditView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var appState: AppState
     @StateObject private var viewModel: ProfileEditViewModel
+    @FocusState private var isLocationFieldFocused: Bool
     
     init(profile: UserProfile) {
         _viewModel = StateObject(wrappedValue: ProfileEditViewModel(profile: profile))
@@ -129,7 +130,7 @@ struct ProfileEditView: View {
     
     private func experienceLevelButton(for level: ProfileSetupViewModel.ExperienceLevel) -> some View {
         Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            withAnimation(Animation.spring(response: 0.3, dampingFraction: 0.7)) {
                 viewModel.experienceLevel = level
             }
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -168,8 +169,8 @@ struct ProfileEditView: View {
                 FlowLayout(spacing: 8) {
                     ForEach(Array(viewModel.selectedSkills), id: \.self) { skill in
                         SkillChip(skill: skill, isSelected: true) {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                viewModel.selectedSkills.remove(skill)
+                            withAnimation(Animation.spring(response: 0.3, dampingFraction: 0.7)) {
+                                _ = viewModel.selectedSkills.remove(skill)
                             }
                         }
                     }
@@ -216,20 +217,183 @@ struct ProfileEditView: View {
     private var locationSection: some View {
         EditSection(title: "Location", icon: "location.fill") {
             VStack(alignment: .leading, spacing: 12) {
-                TextField("City, Country", text: $viewModel.location)
-                    .font(AppTheme.font(size: 16))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .padding()
-                    .background(AppTheme.cardBackground)
-                    .cornerRadius(12)
-                    .onChange(of: viewModel.location) { _, _ in
-                        viewModel.validateLocation()
+                // Location input with suggestions
+                ZStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Show different UI based on locked state
+                        if viewModel.isLocationLocked {
+                            // Locked state - show location with edit button
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(viewModel.location)
+                                        .font(AppTheme.font(size: 16, weight: .medium))
+                                        .foregroundStyle(AppTheme.textPrimary)
+                                    
+                                    // Show currency info
+                                    let currencySymbol = LocationService.shared.getSymbol(for: viewModel.currency)
+                                    Text("\(currencySymbol) \(viewModel.currency)")
+                                        .font(AppTheme.font(size: 12))
+                                        .foregroundStyle(AppTheme.textSecondary)
+                                }
+                                
+                                Spacer()
+                                
+                                // Edit button to unlock
+                                Button {
+                                    viewModel.unlockLocation()
+                                    isLocationFieldFocused = true
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "pencil")
+                                            .font(AppTheme.font(size: 14))
+                                        Text("Edit")
+                                            .font(AppTheme.font(size: 14, weight: .medium))
+                                    }
+                                    .foregroundStyle(AppTheme.primary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(AppTheme.lightGreen)
+                                    .cornerRadius(8)
+                                }
+                            }
+                            .padding()
+                            .background(AppTheme.cardBackground)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .strokeBorder(AppTheme.primary.opacity(0.3), lineWidth: 1)
+                            )
+                        } else {
+                            // Unlocked state - show text field for input
+                            HStack {
+                                TextField("Start typing a city...", text: $viewModel.location)
+                                    .font(AppTheme.font(size: 16))
+                                    .foregroundStyle(AppTheme.textPrimary)
+                                    .focused($isLocationFieldFocused)
+                                    .onChange(of: viewModel.location) { _, _ in
+                                        // Only search when field is focused (not after selecting a suggestion)
+                                        if isLocationFieldFocused {
+                                            viewModel.onLocationChanged()
+                                        }
+                                    }
+                                    .onSubmit {
+                                        // Try to infer location when user presses return
+                                        viewModel.inferLocationDetails()
+                                        viewModel.hideLocationSuggestions()
+                                        isLocationFieldFocused = false
+                                    }
+                                
+                                // Loading indicator when searching
+                                if viewModel.isSearchingLocation {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                        .tint(AppTheme.primary)
+                                }
+                                // Auto-infer button
+                                else if !viewModel.location.isEmpty && !viewModel.showLocationSuggestions {
+                                    Button {
+                                        viewModel.inferLocationDetails()
+                                        isLocationFieldFocused = false
+                                    } label: {
+                                        Image(systemName: "wand.and.stars")
+                                            .font(AppTheme.font(size: 16))
+                                            .foregroundStyle(AppTheme.primary)
+                                    }
+                                }
+                            }
+                            .padding()
+                            .background(AppTheme.cardBackground)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .strokeBorder(
+                                        viewModel.showLocationSuggestions ? AppTheme.primary : Color.clear,
+                                        lineWidth: 1
+                                    )
+                            )
+                        }
+                        
+                        // Suggestions dropdown
+                        if viewModel.showLocationSuggestions && !viewModel.locationSuggestions.isEmpty {
+                            VStack(alignment: .leading, spacing: 0) {
+                                ForEach(viewModel.locationSuggestions) { suggestion in
+                                    Button {
+                                        // Dismiss keyboard first, then select location
+                                        isLocationFieldFocused = false
+                                        viewModel.selectLocation(suggestion)
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: "mappin.circle.fill")
+                                                .font(AppTheme.font(size: 18))
+                                                .foregroundStyle(AppTheme.primary)
+                                            
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(suggestion.city)
+                                                    .font(AppTheme.font(size: 15, weight: .medium))
+                                                    .foregroundStyle(AppTheme.textPrimary)
+                                                
+                                                Text(suggestion.country)
+                                                    .font(AppTheme.font(size: 12))
+                                                    .foregroundStyle(AppTheme.textSecondary)
+                                            }
+                                            
+                                            Spacer()
+                                            
+                                            // Show the ACTUAL currency from the country
+                                            let currencyCode = suggestion.currency
+                                            let currencySymbol = LocationService.shared.getSymbol(for: currencyCode)
+                                            HStack(spacing: 4) {
+                                                Text(currencySymbol)
+                                                    .font(AppTheme.font(size: 12, weight: .semibold))
+                                                Text(currencyCode)
+                                                    .font(AppTheme.font(size: 12, weight: .medium))
+                                            }
+                                            .foregroundStyle(AppTheme.primary)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(AppTheme.lightGreen)
+                                            .cornerRadius(6)
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 12)
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    
+                                    if suggestion.displayName != viewModel.locationSuggestions.last?.displayName {
+                                        Divider()
+                                            .padding(.leading, 46)
+                                    }
+                                }
+                            }
+                            .background(AppTheme.cardBackground)
+                            .cornerRadius(12)
+                            .shadow(color: AppTheme.shadowColor, radius: 8, y: 4)
+                            .padding(.top, 4)
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .top)),
+                                removal: .opacity
+                            ))
+                        }
                     }
+                }
+                .zIndex(1) // Ensure suggestions appear above other content
                 
                 if let error = viewModel.locationValidationError {
                     Text(error)
                         .font(AppTheme.font(size: 12))
                         .foregroundStyle(.red)
+                }
+                
+                // Helper text
+                if !viewModel.showLocationSuggestions {
+                    HStack(spacing: 6) {
+                        Image(systemName: "info.circle")
+                            .font(AppTheme.font(size: 12))
+                        Text("Type a city name and we'll auto-detect the country & currency")
+                            .font(AppTheme.font(size: 12))
+                    }
+                    .foregroundStyle(AppTheme.textSecondary)
                 }
                 
                 currencyPicker
@@ -239,19 +403,29 @@ struct ProfileEditView: View {
     
     private var currencyPicker: some View {
         HStack {
-            Text("Preferred Currency")
+            Text("Currency")
                 .font(AppTheme.font(size: 14))
                 .foregroundStyle(AppTheme.textSecondary)
             
             Spacer()
             
-            Picker("Currency", selection: $viewModel.currency) {
-                ForEach(CurrencyOption.allCases, id: \.self) { option in
-                    Text("\(option.flag) \(option.code)").tag(option.code)
+            // Display the current currency dynamically
+            let currencySymbol = LocationService.shared.getSymbol(for: viewModel.currency)
+            let currencyName = LocationService.shared.getName(for: viewModel.currency)
+            
+            VStack(alignment: .trailing, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(currencySymbol)
+                        .font(AppTheme.font(size: 16, weight: .semibold))
+                    Text(viewModel.currency)
+                        .font(AppTheme.font(size: 16, weight: .medium))
                 }
+                .foregroundStyle(AppTheme.primary)
+                
+                Text(currencyName)
+                    .font(AppTheme.font(size: 11))
+                    .foregroundStyle(AppTheme.textSecondary)
             }
-            .pickerStyle(.menu)
-            .tint(AppTheme.primary)
         }
         .padding()
         .background(AppTheme.cardBackground)
@@ -309,26 +483,7 @@ struct SkillChip: View {
     }
 }
 
-enum CurrencyOption: String, CaseIterable {
-    case USD, EUR, GBP, INR, AUD, CAD, SGD, AED
-    
-    var flag: String {
-        switch self {
-        case .USD: return "🇺🇸"
-        case .EUR: return "🇪🇺"
-        case .GBP: return "🇬🇧"
-        case .INR: return "🇮🇳"
-        case .AUD: return "🇦🇺"
-        case .CAD: return "🇨🇦"
-        case .SGD: return "🇸🇬"
-        case .AED: return "🇦🇪"
-        }
-    }
-    
-    var code: String {
-        self.rawValue
-    }
-}
+// Note: Currency is now fully dynamic using Locale - no hardcoded list needed!
 
 #Preview {
     ProfileEditView(profile: UserProfile(
