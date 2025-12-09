@@ -266,7 +266,7 @@ let isLookingAtCamera = abs(lookAtPoint.x) < 0.1 && abs(lookAtPoint.y) < 0.1
 
 - **Language**: Swift 5.9
 - **UI Framework**: SwiftUI
-- **Minimum iOS**: 15.0+
+- **Minimum iOS**: 17.0+
 - **Optimized For**: Apple Silicon (A-series, M-series chips)
 
 ### External Services
