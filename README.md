@@ -1,16 +1,19 @@
 <h1>Final Round</h1>
 
 <p>
-  <strong>AI-Powered Mock Interview Coach — Built for ARM</strong>
+  <strong>AI-Powered Mock Interview Coach - Built for ARM</strong>
 </p>
 
 <p>
-  <em>Practice interviews with real-time feedback on eye contact, speech patterns, and confidence — all processed on-device using ARM's Neural Engine and Accelerate framework.</em>
+  <em>Practice interviews with real-time feedback on eye contact, speech patterns, and confidence - all processed on-device using platform-native AI acceleration.</em>
 </p>
 
 <p>
   <a href="https://apps.apple.com/sg/app/finalround-ai/id6755817745">
     <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="50">
+  </a>
+  <a href="https://play.google.com/store/apps/details?id=com.finalround.final_round">
+    <img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="50">
   </a>
 </p>
 
@@ -25,9 +28,9 @@
 
 ## Overview
 
-**Final Round** is a native iOS application that transforms your iPhone into a personal interview coach. Using advanced on-device AI processing, it analyzes your verbal responses, eye contact, speaking pace, and overall confidence in real-time — providing actionable feedback to help you ace your next interview.
+**Final Round** is a cross-platform mobile application (iOS & Android) that transforms your smartphone into a personal interview coach. Using advanced on-device AI processing, it analyzes your verbal responses, eye contact, speaking pace, and overall confidence in real-time - providing actionable feedback to help you ace your next interview.
 
-Unlike cloud-based solutions, Final Round performs all AI inference locally on Apple Silicon, ensuring your interview practice sessions remain completely private while delivering millisecond-level response times.
+Unlike cloud-based solutions, Final Round performs all AI inference locally on your device - using Apple's Neural Engine on iOS and Google ML Kit on Android - ensuring your interview practice sessions remain completely private while delivering millisecond-level response times.
 
 ---
 
@@ -45,7 +48,9 @@ Unlike cloud-based solutions, Final Round performs all AI inference locally on A
 - **Real-Time Gaze Detection**: Continuous monitoring of eye contact during responses
 - **Percentage Metrics**: Track exactly how much time you maintain eye contact with the camera
 - **Visual Feedback**: Live indicator showing when you're looking at the camera
-- **Precision Tracking**: Uses Vision framework with Neural Engine acceleration for sub-10ms latency
+- **Cross-Platform Implementation**:
+  - **iOS**: Uses ARKit/Vision framework with Neural Engine acceleration for sub-10ms latency
+  - **Android**: Uses Google ML Kit Face Detection with CameraX for efficient on-device processing
 
 ### 🎵 Speech & Tone Analysis
 
@@ -79,19 +84,22 @@ Unlike cloud-based solutions, Final Round performs all AI inference locally on A
 
 ### 🔒 Privacy-First Design
 
-- **100% On-Device Processing**: All AI inference runs locally — nothing leaves your phone
+- **100% On-Device Processing**: All AI inference runs locally - nothing leaves your phone
 - **No Cloud Dependencies**: Eye contact, tone analysis, and confidence scoring happen entirely on-device
-- **Secure Data Storage**: Interview sessions stored locally with optional cloud backup
+- **Secure Data Storage**: Interview sessions stored locally with optional cloud sync via Supabase
+- **Cross-Platform Privacy**: Same privacy guarantees on both iOS and Android
 
 ---
 
 ## ARM Optimization
 
-Final Round is purpose-built to leverage ARM architecture capabilities, delivering desktop-class AI performance with mobile-class power efficiency.
+Final Round is purpose-built to leverage ARM architecture capabilities on both iOS and Android, delivering desktop-class AI performance with mobile-class power efficiency.
 
-### Neural Engine Utilization
+---
 
-The app offloads ML inference to Apple's Neural Engine, which is specifically optimized for ARM architecture:
+### 🍎 iOS: Neural Engine Utilization
+
+On iOS, the app offloads ML inference to Apple's Neural Engine, which is specifically optimized for ARM architecture:
 
 ```swift
 // Vision framework face detection runs on Neural Engine via CoreML backend
@@ -104,7 +112,7 @@ try handler.perform([faceDetectionRequest])
 - **Zero CPU/GPU load** for ML inference
 - **10x faster** inference compared to CPU execution
 - **Face tracking at 30 FPS** with <10ms latency
-- **Minimal battery impact** — Neural Engine designed for continuous operation
+- **Minimal battery impact** - Neural Engine designed for continuous operation
 
 ### Accelerate Framework (NEON SIMD)
 
@@ -134,7 +142,7 @@ ARM's unified memory enables efficient data sharing between CPU, GPU, and Neural
 ```swift
 // CVPixelBuffer shared across Vision, Metal, and CoreML
 let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
-// No memory copy needed — all processors access same buffer
+// No memory copy needed - all processors access same buffer
 ```
 
 **Benefits:**
@@ -142,9 +150,9 @@ let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
 - **Reduced memory bandwidth** usage
 - **Lower latency** for multi-stage pipelines
 
-### ARKit Integration (TrueDepth)
+### 🍎 iOS: ARKit Integration (TrueDepth)
 
-When available, the app leverages ARKit for precise gaze tracking using the TrueDepth camera:
+When available, the iOS app leverages ARKit for precise gaze tracking using the TrueDepth camera:
 
 ```swift
 // ARKit provides sub-degree accuracy for gaze direction
@@ -156,6 +164,63 @@ let isLookingAtCamera = abs(lookAtPoint.x) < 0.1 && abs(lookAtPoint.y) < 0.1
 - **Sub-degree accuracy** for gaze direction
 - **Hardware-accelerated** depth sensing
 - **Efficient sensor fusion** (camera, depth, IMU)
+
+---
+
+### 🤖 Android: Google ML Kit Face Detection
+
+On Android, the app uses Google ML Kit for efficient on-device face detection and eye contact tracking:
+
+```dart
+// ML Kit Face Detection with performance mode
+final faceDetector = FaceDetector(
+  options: FaceDetectorOptions(
+    enableClassification: true,  // For eye open probability
+    performanceMode: FaceDetectorMode.fast,
+  ),
+);
+
+// Process camera frame for eye contact
+final faces = await faceDetector.processImage(inputImage);
+if (faces.isNotEmpty) {
+  final face = faces.first;
+  final leftEyeOpen = face.leftEyeOpenProbability ?? 0;
+  final rightEyeOpen = face.rightEyeOpenProbability ?? 0;
+  // Calculate eye contact from face orientation and eye state
+}
+```
+
+**Benefits:**
+- **On-device processing**: All face detection runs locally via ML Kit
+- **Real-time performance**: Optimized for ARM processors on Android devices
+- **Battery efficient**: Uses hardware acceleration when available
+- **No network required**: Works completely offline
+
+### 🤖 Android: CameraX Integration
+
+The Android app uses Jetpack CameraX for efficient camera access and frame processing:
+
+```dart
+// Flutter camera integration with ML Kit
+final cameras = await availableCameras();
+final controller = CameraController(
+  cameras.firstWhere((c) => c.lensDirection == CameraLensDirection.front),
+  ResolutionPreset.medium,
+  enableAudio: false,
+);
+
+// Stream frames to ML Kit for analysis
+controller.startImageStream((image) {
+  _processFrame(image);  // Runs face detection on each frame
+});
+```
+
+**Benefits:**
+- **Lifecycle-aware**: Automatically manages camera resources
+- **Optimized streaming**: Efficient frame delivery to ML Kit
+- **Cross-device compatibility**: Works across Android device manufacturers
+
+---
 
 ### Performance Benchmarks
 
@@ -251,7 +316,7 @@ let isLookingAtCamera = abs(lookAtPoint.x) < 0.1 && abs(lookAtPoint.y) < 0.1
 
 ## Technology Stack
 
-### Frameworks
+### iOS Frameworks
 
 | Framework | Purpose | ARM Optimization |
 |-----------|---------|------------------|
@@ -262,12 +327,29 @@ let isLookingAtCamera = abs(lookAtPoint.x) < 0.1 && abs(lookAtPoint.y) < 0.1
 | **AVFoundation** | Camera/audio capture | Hardware accelerated |
 | **SwiftUI** | User interface | Native ARM rendering |
 
+### Android Frameworks
+
+| Framework | Purpose | Optimization |
+|-----------|---------|------------------|
+| **Google ML Kit** | Face detection, eye tracking | On-device ML |
+| **CameraX** | Camera capture and streaming | Jetpack optimized |
+| **Flutter Sound** | Audio recording and playback | Native integration |
+| **Geolocator** | Location services | Platform channels |
+| **Flutter** | Cross-platform UI | Skia rendering engine |
+
 ### Architecture
 
+**iOS:**
 - **Language**: Swift 5.9
 - **UI Framework**: SwiftUI
 - **Minimum iOS**: 17.0+
 - **Optimized For**: Apple Silicon (A-series, M-series chips)
+
+**Android:**
+- **Language**: Dart 3.x (Flutter)
+- **UI Framework**: Flutter/Material 3
+- **Minimum Android**: API 23 (Android 6.0+)
+- **Optimized For**: ARM64 devices
 
 ### External Services
 
@@ -281,7 +363,7 @@ let isLookingAtCamera = abs(lookAtPoint.x) < 0.1 && abs(lookAtPoint.y) < 0.1
 
 ### 1. Multi-Modal On-Device AI
 
-Final Round simultaneously runs face detection, audio analysis, and sentiment analysis — all on-device — without thermal throttling or significant battery drain.
+Final Round simultaneously runs face detection, audio analysis, and sentiment analysis - all on-device - without thermal throttling or significant battery drain.
 
 ### 2. Real-Time Performance
 
@@ -293,7 +375,8 @@ By keeping all AI processing local, users can practice interviews containing sen
 
 ### 4. Graceful Degradation
 
-The app automatically falls back from ARKit to Vision framework when TrueDepth camera isn't available, ensuring consistent functionality across all iOS devices.
+- **iOS**: Automatically falls back from ARKit to Vision framework when TrueDepth camera isn't available
+- **Android**: Uses ML Kit face detection which works across all Android devices with a front camera
 
 ### 5. Adaptive Quality
 
@@ -315,11 +398,11 @@ delivers desktop-class ML performance with mobile-class power consumption - exac
 ---
 
 <p>
-  <strong>Final Round — AI Interview Preparation</strong><br/>
+  <strong>Final Round - AI Interview Preparation</strong><br/>
   Built for the <a href="https://arm-ai-developer-challenge.devpost.com/">Arm AI Developer Challenge 2025</a>
 </p>
 
 <p>
-  <sub>November 2025</sub>
+  <sub>December 2025</sub>
 </p>
 
